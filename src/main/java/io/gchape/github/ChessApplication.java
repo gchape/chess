@@ -21,8 +21,8 @@ public class ChessApplication extends Application {
         Map<String, String> params = getParameters().getNamed();
         Application.setUserAgentStylesheet(new PrimerDark().getUserAgentStylesheet());
 
-        String agent = params.get("agent");
-        int port = Integer.parseInt(params.get("port"));
+        String agent = params.getOrDefault("agent", "server");
+        int port = Integer.parseInt(params.getOrDefault("port", "8080"));
 
         if (agent.equals("server")) {
             var serverView = ServerView.INSTANCE;
