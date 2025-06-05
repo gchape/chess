@@ -11,7 +11,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <run.args>--agent=server --port=8080</run.args>
+        <args>--agent=server --port=8080</args>
         <junit.version>5.10.2</junit.version>
     </properties>
 
@@ -58,14 +58,14 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>io.gchape.github.ChessApplication</mainClass>
-                    <commandlineArgs>${run.args}</commandlineArgs>
+                    <commandlineArgs>${args}</commandlineArgs>
                 </configuration>
                 <executions>
                     <execution>
                         <!-- Default configuration for running with: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>io.gchape.github.chess/io.gchape.github.ChessApplication</mainClass>
+                            <mainClass>io.gchape.github.ChessApplication</mainClass> <!-- Corrected this line -->
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
                             <jlinkImageName>app</jlinkImageName>

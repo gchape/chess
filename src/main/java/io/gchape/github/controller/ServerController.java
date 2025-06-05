@@ -11,14 +11,10 @@ public class ServerController {
     private final Server server;
 
     public ServerController(final ServerView serverView,
-                            final ServerModel serverModel,
-                            final int port) {
+                            final ServerModel serverModel) {
         this.serverView = serverView;
         this.serverModel = serverModel;
-        this.server = new Server(
-                serverModel.serverUpdatesProperty(),
-                serverModel.clientCountProperty(),
-                port);
+        this.server = new Server(serverModel.serverUpdatesProperty(), serverModel.clientCountProperty());
 
         setupBindings();
     }
