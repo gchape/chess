@@ -33,21 +33,18 @@ public class Server implements Closeable {
     private ServerSocketChannel server;
 
     public Server(final StringProperty serverUpdatesProperty,
-                  final IntegerProperty clientCountProperty,
-                  final int port) {
+                  final IntegerProperty clientCountProperty) {
         this.log = ByteBuffer.allocate(16 * 1024);
         this.socketChannels = ConcurrentHashMap.newKeySet();
         this.executorService = Executors.newFixedThreadPool(2);
 
         this.clientCountProperty = clientCountProperty;
         this.serverUpdatesProperty = serverUpdatesProperty;
-
-        startServer(port);
     }
 
-    private void startServer(final int port) {
+    public void startServer(final String host, final int port) {
         try {
-            var serverAddress = new InetSocketAddress("localhost", port);
+            var serverAddress = new InetSocketAddress(host, port);
 
             server = ServerSocketChannel.open();
             server
@@ -191,10 +188,12 @@ public class Server implements Closeable {
 
     private void syncState(SocketChannel clientChannel) throws IOException {
         synchronized (log) {
-            log.flip();
-            while (log.hasRemaining()) {
-                byte[] chunk = new byte[Math.min(1024, log.remaining())];
-                log.get(chunk);
+            ByteBuffer snapshot = log.duplicate();
+            snapshot.flip();
+
+            while (snapshot.hasRemaining()) {
+                byte[] chunk = new byte[Math.min(1024, snapshot.remaining())];
+                snapshot.get(chunk);
 
                 clientChannel.write(ByteBuffer.wrap(chunk));
             }
