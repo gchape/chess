@@ -1,0 +1,31 @@
+/* server-view.css */
+
+.label-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.status-box {
+    -fx-padding: 5 0 5 0;
+    -fx-spacing: 5;
+    -fx-alignment: center;
+}
+
+.forms-box {
+    -fx-padding: 20;
+    -fx-spacing: 40;
+    -fx-alignment: center;
+}
+
+.registration-form,
+.login-form {
+    -fx-spacing: 10;
+}
+
+.registration-form {
+    -fx-alignment: center-left;
+}
+
+.login-form {
+    -fx-alignment: center-right;
+}
