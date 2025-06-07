@@ -5,8 +5,6 @@ import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
@@ -52,18 +50,16 @@ public enum ServerView {
     }
 
     private void setupTopStatus() {
-        VBox statusBox = new VBox(5);
-        statusBox.setAlignment(Pos.CENTER);
-        statusBox.setPadding(new Insets(5, 0, 5, 0));
+        VBox statusBox = new VBox();
+        statusBox.getStyleClass().add("status-box");
 
         statusBox.getChildren().addAll(serverStatusLabel, connectedClientsLabel);
         root.setTop(statusBox);
     }
 
     private void setupForms() {
-        HBox formsBox = new HBox(40);
-        formsBox.setPadding(new Insets(20));
-        formsBox.setAlignment(Pos.CENTER);
+        HBox formsBox = new HBox();
+        formsBox.getStyleClass().add("forms-box");
 
         VBox registrationForm = createRegistrationForm();
         VBox loginForm = createLoginForm();
@@ -73,11 +69,11 @@ public enum ServerView {
     }
 
     private VBox createRegistrationForm() {
-        VBox form = new VBox(10);
-        form.setAlignment(Pos.CENTER_LEFT);
+        VBox form = new VBox();
+        form.getStyleClass().addAll("registration-form");
 
         Label title = new Label("Registration");
-        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        title.getStyleClass().add("label-title");
 
         TextField username = new TextField();
         username.setPromptText("Username");
@@ -95,11 +91,11 @@ public enum ServerView {
     }
 
     private VBox createLoginForm() {
-        VBox form = new VBox(10);
-        form.setAlignment(Pos.CENTER_RIGHT);
+        VBox form = new VBox();
+        form.getStyleClass().addAll("login-form");
 
         Label title = new Label("Login");
-        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        title.getStyleClass().add("label-title");
 
         TextField username = new TextField();
         username.setPromptText("Username");
