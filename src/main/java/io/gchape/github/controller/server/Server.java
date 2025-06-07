@@ -1,7 +1,9 @@
 package io.gchape.github.controller.server;
 
-import javafx.application.Platform;
+import io.gchape.github.model.entity.ClientMode;
 import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
 import java.io.Closeable;
@@ -12,6 +14,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalTime;
 import java.util.Iterator;
@@ -21,25 +24,33 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server implements Closeable {
-    private final IntegerProperty clientCountProperty;
-    private final StringProperty serverUpdatesProperty;
+    public static final Charset CHARSET = StandardCharsets.UTF_8;
+    private final IntegerProperty connectedClients;
+    private final StringProperty serverStatus;
 
-    private final ByteBuffer log;
+    private final ByteBuffer cache;
     private final ExecutorService executorService;
-    private final ConcurrentHashMap.KeySetView<SocketChannel, Boolean> socketChannels;
+    private final ConcurrentHashMap<SocketChannel, ClientMode> connections;
 
-    private Selector acceptSelector;
     private Selector clientSelector;
+    private Selector acceptSelector;
     private ServerSocketChannel server;
 
-    public Server(final StringProperty serverUpdatesProperty,
-                  final IntegerProperty clientCountProperty) {
-        this.log = ByteBuffer.allocate(16 * 1024);
-        this.socketChannels = ConcurrentHashMap.newKeySet();
+    public Server() {
+        this.connections = new ConcurrentHashMap<>();
+        this.cache = ByteBuffer.allocate(16 * 1024);
         this.executorService = Executors.newFixedThreadPool(2);
 
-        this.clientCountProperty = clientCountProperty;
-        this.serverUpdatesProperty = serverUpdatesProperty;
+        this.serverStatus = new SimpleStringProperty();
+        this.connectedClients = new SimpleIntegerProperty(0);
+    }
+
+    public IntegerProperty connectedClientsProperty() {
+        return connectedClients;
+    }
+
+    public StringProperty serverStatusProperty() {
+        return serverStatus;
     }
 
     public void startServer(final String host, final int port) {
@@ -55,7 +66,7 @@ public class Server implements Closeable {
             acceptSelector = Selector.open();
             server.register(acceptSelector, SelectionKey.OP_ACCEPT);
 
-            syncUpdates("Server started at={ %s }.".formatted(serverAddress), 0);
+            updateState("Server started at={ %s }.".formatted(serverAddress), 0);
 
             executorService.submit(this::watchAcceptable);
             executorService.submit(this::watchReadable);
@@ -95,12 +106,10 @@ public class Server implements Closeable {
                         clientChannel.configureBlocking(false);
                         clientChannel.register(clientSelector, SelectionKey.OP_READ, ByteBuffer.allocate(1024));
 
-                        socketChannels.add(clientChannel);
+                        updateState("New client connected at={ %s }."
+                                .formatted(LocalTime.now()), 1);
 
                         syncState(clientChannel);
-
-                        syncUpdates("New client connected at={ %s }."
-                                .formatted(LocalTime.now()), 1);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -150,18 +159,14 @@ public class Server implements Closeable {
         }
 
         buffer.flip();
-        var message = StandardCharsets.UTF_8.decode(buffer).toString().trim();
+        var message = CHARSET.decode(buffer).toString().trim();
 
         if (!message.isEmpty()) {
-            synchronized (log) {
-                if (log.remaining() < message.length()) {
-                    log.clear();
-                }
-
-                log.put(("%s%n".formatted(message)).getBytes(StandardCharsets.UTF_8));
+            synchronized (cache) {
+                cache.put(CHARSET.encode("%s%n".formatted(message)));
             }
 
-            syncUpdates("Received={ %s } from client.".formatted(message), 0);
+            updateState("Received={ %s } from client.".formatted(message), 0);
 
             broadcastMessage(message, clientChannel);
         }
@@ -169,17 +174,20 @@ public class Server implements Closeable {
         buffer.clear();
     }
 
-    private void broadcastMessage(final String message, final SocketChannel sender) {
+    private void broadcastMessage(final String message, final SocketChannel sender) throws IOException {
         var broadcastBuffer = ByteBuffer.wrap((message + "\n").getBytes(StandardCharsets.UTF_8));
 
-        synchronized (socketChannels) {
-            for (SocketChannel client : socketChannels) {
+        synchronized (connections) {
+            for (SocketChannel client : connections.keySet()) {
                 if (!client.equals(sender) && client.isConnected()) {
                     try {
                         broadcastBuffer.rewind();
                         client.write(broadcastBuffer);
                     } catch (IOException e) {
-                        System.err.println("Error broadcasting to client: " + e.getMessage());
+                        var key = client.keyFor(clientSelector);
+                        if (key != null) {
+                            closeClient(client, key);
+                        }
                     }
                 }
             }
@@ -187,45 +195,70 @@ public class Server implements Closeable {
     }
 
     private void syncState(SocketChannel clientChannel) throws IOException {
-        synchronized (log) {
-            ByteBuffer snapshot = log.duplicate();
-            snapshot.flip();
+        synchronized (cache) {
+            ByteBuffer snapshot = cache.asReadOnlyBuffer().flip();
 
-            while (snapshot.hasRemaining()) {
-                byte[] chunk = new byte[Math.min(1024, snapshot.remaining())];
-                snapshot.get(chunk);
+            ClientMode clientMode;
+            if (connectedClients.get() > 2) {
+                clientMode = ClientMode.SPECTATOR;
+            } else {
+                clientMode = ClientMode.PLAYER;
+            }
 
-                clientChannel.write(ByteBuffer.wrap(chunk));
+            connections.put(clientChannel, clientMode);
+
+            ByteBuffer mode = CHARSET.encode("%s%n".formatted(clientMode));
+            ByteBuffer response = ByteBuffer.allocate(mode.remaining() + snapshot.remaining());
+
+            response.put(mode);
+            response.put(snapshot);
+
+            response.flip();
+            while (response.hasRemaining()) {
+                clientChannel.write(response);
             }
         }
     }
 
     private void closeClient(final SocketChannel clientChannel, final SelectionKey key) throws IOException {
         key.cancel();
-        clientChannel.close();
-        socketChannels.remove(clientChannel);
 
-        syncUpdates("Client disconnected at={ %s }.".formatted(LocalTime.now()), -1);
+        var mode = connections.get(clientChannel);
+        connections.remove(clientChannel);
+        clientChannel.close();
+
+        updateState("Client disconnected at={ %s }.".formatted(LocalTime.now()), -1);
+
+        if (mode == ClientMode.PLAYER) {
+            updateState("Session closed at={ %s }".formatted(LocalTime.now()), 0);
+
+            disconnectClients();
+        }
     }
 
-    private void syncUpdates(final String serverUpdate, final int payload) {
-        Platform.runLater(() -> {
-            serverUpdatesProperty.set(serverUpdate);
+    private void updateState(final String serverUpdate, final int payload) {
+        serverStatus.set(serverUpdate);
 
-            switch (payload) {
-                case 1 -> clientCountProperty.set(clientCountProperty.add(1).intValue());
-                case -1 -> clientCountProperty.set(clientCountProperty.subtract(1).intValue());
-                default -> {
-                }
+        switch (payload) {
+            case 1 -> connectedClients.set(connectedClients.get() + 1);
+            case -1 -> connectedClients.set(connectedClients.get() - 1);
+            default -> {
             }
-        });
+        }
     }
 
     @Override
     public void close() throws IOException {
-        Thread.currentThread().interrupt();
+        disconnectClients();
 
-        socketChannels
+        server.close();
+        clientSelector.close();
+        acceptSelector.close();
+        executorService.shutdownNow();
+    }
+
+    private void disconnectClients() {
+        connections.keySet()
                 .parallelStream()
                 .forEach(socketChannel -> {
                     try {
@@ -235,9 +268,7 @@ public class Server implements Closeable {
                     }
                 });
 
-        clientSelector.close();
-        acceptSelector.close();
-        server.close();
-        executorService.shutdownNow();
+        connections.clear();
+        connectedClients.set(0);
     }
 }

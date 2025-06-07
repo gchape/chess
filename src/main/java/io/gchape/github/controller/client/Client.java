@@ -1,15 +1,20 @@
 package io.gchape.github.controller.client;
 
+import io.gchape.github.controller.server.Server;
+import io.gchape.github.model.entity.ClientMode;
+
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -21,9 +26,10 @@ public class Client implements Closeable {
     private final Selector readSelector;
     private final Selector writeSelector;
 
-    private final StringBuilder message;
     private final Queue<String> outgoing;
     private final ExecutorService executorService;
+
+    private volatile ClientMode clientMode;
 
     public Client(final String host, final int port) {
         try {
@@ -36,13 +42,11 @@ public class Client implements Closeable {
             client.register(writeSelector, 0);
             client.register(readSelector, SelectionKey.OP_READ, ByteBuffer.allocate(1024));
 
-            message = new StringBuilder();
             outgoing = new ConcurrentLinkedQueue<>();
             executorService = Executors.newFixedThreadPool(3);
 
             executorService.submit(this::watchConsole);
             executorService.submit(this::watchReadable);
-            executorService.submit(this::watchWritable);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -118,20 +122,20 @@ public class Client implements Closeable {
         }
     }
 
-    public void send(String message) {
+    public void send(final String message) {
         outgoing.offer(message);
 
         var key = client.keyFor(writeSelector);
-        if (key != null) {
+        if (key != null && key.isValid()) {
             key.interestOps(SelectionKey.OP_WRITE);
             writeSelector.wakeup();
         }
     }
 
     private void flush() throws IOException {
-        String msg;
-        while ((msg = outgoing.poll()) != null) {
-            ByteBuffer buffer = ByteBuffer.wrap(msg.getBytes(StandardCharsets.UTF_8));
+        String message;
+        while ((message = outgoing.poll()) != null) {
+            ByteBuffer buffer = ByteBuffer.wrap(message.getBytes(StandardCharsets.UTF_8));
             while (buffer.hasRemaining()) {
                 client.write(buffer);
             }
@@ -144,33 +148,46 @@ public class Client implements Closeable {
 
         if (bytesRead == -1) {
             close();
+
             return;
         } else if (bytesRead == 0) {
             return;
         }
 
         buffer.flip();
-        message.append(StandardCharsets.UTF_8.decode(buffer));
+
+        parse(Server.CHARSET.decode(buffer));
+
         buffer.clear();
-
-        int newline;
-        while ((newline = message.indexOf("\n")) != -1) {
-            String line = message.substring(0, newline).trim();
-            message.delete(0, newline + 1);
-
-            parse(line);
-        }
     }
 
-    private void parse(final String message) {
-        System.out.println(message);
+    private void parse(final CharBuffer request) {
+        String[] body =
+                request.toString()
+                        .trim()
+                        .split("\\R", -1);
+
+        if (clientMode == null) {
+            clientMode = ClientMode.valueOf(body[0]);
+            body = Arrays.copyOfRange(body, 1, body.length);
+
+            if (clientMode == ClientMode.PLAYER) {
+                executorService.submit(this::watchWritable);
+            }
+
+            System.out.println(clientMode);
+        }
+
+        System.out.println(Arrays.toString(body));
     }
 
     @Override
     public void close() throws IOException {
         client.close();
+
         readSelector.close();
         writeSelector.close();
+
         executorService.shutdownNow();
     }
 }

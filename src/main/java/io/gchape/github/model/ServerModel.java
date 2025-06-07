@@ -6,19 +6,19 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
 public class ServerModel {
-    private final IntegerProperty clientCount;
-    private final StringProperty serverUpdates;
+    private final StringProperty serverStatus;
+    private final IntegerProperty connectedClients;
 
     public ServerModel() {
-        this.serverUpdates = new SimpleStringProperty();
-        this.clientCount = new SimpleIntegerProperty(0);
+        this.serverStatus = new SimpleStringProperty();
+        this.connectedClients = new SimpleIntegerProperty();
     }
 
-    public StringProperty serverUpdatesProperty() {
-        return serverUpdates;
+    public StringProperty serverStatusProperty() {
+        return serverStatus;
     }
 
-    public IntegerProperty clientCountProperty() {
-        return clientCount;
+    public IntegerProperty connectedClientsProperty() {
+        return connectedClients;
     }
 }

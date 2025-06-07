@@ -1,41 +1,20 @@
 package io.gchape.github;
 
 import atlantafx.base.theme.PrimerDark;
+import io.gchape.github.controller.ClientController;
 import io.gchape.github.controller.ServerController;
-import io.gchape.github.controller.client.Client;
-import io.gchape.github.controller.server.Server;
 import io.gchape.github.model.ServerModel;
+import io.gchape.github.view.ClientView;
 import io.gchape.github.view.ServerView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class ChessApplication extends Application {
     public static void main(String[] args) {
         Application.launch(args);
-    }
-
-    private static void setOnCloseRequest(final Stage stage, final Server server) {
-        stage.setOnCloseRequest((e) -> {
-            try {
-                server.close();
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
-    }
-
-    private static void setOnCloseRequest(final Stage stage, final Client client) {
-        stage.setOnCloseRequest((e) -> {
-            try {
-                client.close();
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
     }
 
     @Override
@@ -47,20 +26,21 @@ public class ChessApplication extends Application {
         int port = Integer.parseInt(params.get("port"));
 
         if (agent.equals("server")) {
-            var serverView = ServerView.INSTANCE;
-            var serverController = new ServerController(serverView, new ServerModel());
-            var server = serverController.getServer();
+            var sv = ServerView.INSTANCE;
+            var sc = new ServerController(sv, new ServerModel());
+            sc.startServer("localhost", 8080);
 
-            server.startServer("localhost", 8080);
-
-            setOnCloseRequest(stage, server);
-
-            stage.setScene(new Scene(serverView.view()));
+            stage.setOnCloseRequest(e -> sc.stopServer());
+            stage.setScene(new Scene(sv.view()));
             stage.show();
         } else if (agent.equals("client")) {
-            var client = new Client("localhost", port);
+            var cv = new ClientView();
+            var cc = new ClientController(cv);
+            cc.startClient("localhost", port);
 
-            setOnCloseRequest(stage, client);
+            stage.setOnCloseRequest(e -> cc.closeClient());
+            stage.setScene(new Scene(cv.view()));
+            stage.show();
         }
 
         stage.setHeight(600);

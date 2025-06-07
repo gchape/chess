@@ -4,6 +4,8 @@ import io.gchape.github.controller.server.Server;
 import io.gchape.github.model.ServerModel;
 import io.gchape.github.view.ServerView;
 
+import java.io.IOException;
+
 public class ServerController {
     private final ServerView serverView;
     private final ServerModel serverModel;
@@ -12,22 +14,35 @@ public class ServerController {
 
     public ServerController(final ServerView serverView,
                             final ServerModel serverModel) {
+        this.server = new Server();
         this.serverView = serverView;
         this.serverModel = serverModel;
-        this.server = new Server(serverModel.serverUpdatesProperty(), serverModel.clientCountProperty());
 
         setupBindings();
     }
 
     private void setupBindings() {
-        serverView.serverUpdatesProperty()
-                .bind(serverModel.serverUpdatesProperty());
+        serverModel.serverStatusProperty()
+                .bind(server.serverStatusProperty());
+        serverModel.connectedClientsProperty()
+                .bind(server.connectedClientsProperty());
 
-        serverView.clientCountProperty()
-                .bind(serverModel.clientCountProperty());
+        serverView.serverStatusProperty()
+                .bind(serverModel.serverStatusProperty());
+
+        serverView.connectedClientsProperty()
+                .bind(serverModel.connectedClientsProperty());
     }
 
-    public Server getServer() {
-        return server;
+    public void startServer(final String host, final int port) {
+        server.startServer(host, port);
+    }
+
+    public void stopServer() {
+        try {
+            server.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

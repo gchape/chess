@@ -1,5 +1,6 @@
 package io.gchape.github.view;
 
+import javafx.application.Platform;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -19,18 +20,33 @@ public enum ServerView {
     INSTANCE;
 
     private final BorderPane root;
-    private final StringProperty serverUpdates;
-    private final IntegerProperty clientCount;
+    private final Label serverStatusLabel;
+    private final Label connectedClientsLabel;
+
+    private final StringProperty serverStatus;
+    private final IntegerProperty connectedClients;
 
     ServerView() {
         root = new BorderPane();
-        serverUpdates = new SimpleStringProperty();
-        clientCount = new SimpleIntegerProperty(0);
+        serverStatus = new SimpleStringProperty();
+        connectedClients = new SimpleIntegerProperty();
 
-        setupControls();
+        serverStatusLabel = new Label();
+        connectedClientsLabel = new Label();
+
+        addControls();
+        addListeners();
     }
 
-    private void setupControls() {
+    private void addListeners() {
+        serverStatus.subscribe(v -> Platform.runLater(() -> serverStatusLabel.setText(v)));
+
+        connectedClients.subscribe(v ->
+                Platform.runLater(() ->
+                        connectedClientsLabel.setText("Connected clients={ %d }.".formatted(v.intValue()))));
+    }
+
+    private void addControls() {
         setupTopStatus();
         setupForms();
     }
@@ -40,13 +56,7 @@ public enum ServerView {
         statusBox.setAlignment(Pos.CENTER);
         statusBox.setPadding(new Insets(5, 0, 5, 0));
 
-        Label statusLabel = new Label();
-        Label clientsLabel = new Label();
-
-        statusLabel.textProperty().bind(serverUpdates);
-        clientsLabel.textProperty().bind(clientCount.asString("Connected clients={ %d }."));
-
-        statusBox.getChildren().addAll(statusLabel, clientsLabel);
+        statusBox.getChildren().addAll(serverStatusLabel, connectedClientsLabel);
         root.setTop(statusBox);
     }
 
@@ -107,11 +117,11 @@ public enum ServerView {
         return root;
     }
 
-    public StringProperty serverUpdatesProperty() {
-        return serverUpdates;
+    public StringProperty serverStatusProperty() {
+        return serverStatus;
     }
 
-    public IntegerProperty clientCountProperty() {
-        return clientCount;
+    public IntegerProperty connectedClientsProperty() {
+        return connectedClients;
     }
 }
