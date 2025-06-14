@@ -29,3 +29,67 @@
 .login-form {
     -fx-alignment: center-right;
 }
+.server-title {
+    -fx-text-fill: #2c3e50;
+}
+
+.server-header {
+    -fx-background-color: #ecf0f1;
+    -fx-border-color: #bdc3c7;
+    -fx-border-width: 0 0 1 0;
+}
+
+.status-panel {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #dee2e6;
+    -fx-border-width: 0 1 0 0;
+    -fx-min-width: 200px;
+}
+
+.status-label {
+    -fx-text-fill: #495057;
+}
+
+.clients-label, .port-label {
+    -fx-text-fill: #6c757d;
+}
+
+.log-area {
+    -fx-font-family: "Courier New", monospace;
+    -fx-font-size: 12px;
+}
+
+.control-panel {
+    -fx-background-color: #f8f9fa;
+    -fx-border-color: #dee2e6;
+    -fx-border-width: 0 0 0 1;
+    -fx-min-width: 150px;
+}
+
+.control-button {
+    -fx-background-color: #007bff;
+    -fx-text-fill: white;
+    -fx-background-radius: 5;
+}
+
+.control-button:hover {
+    -fx-background-color: #0056b3;
+}
+
+.stop-button {
+    -fx-background-color: #dc3545;
+}
+
+.stop-button:hover {
+    -fx-background-color: #c82333;
+}
+
+.secondary-button {
+    -fx-background-color: #6c757d;
+    -fx-text-fill: white;
+    -fx-background-radius: 5;
+}
+
+.secondary-button:hover {
+    -fx-background-color: #545b62;
+}

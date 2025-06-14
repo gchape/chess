@@ -1,8 +1,9 @@
 package io.gchape.github;
 
 import atlantafx.base.theme.PrimerDark;
-import io.gchape.github.controller.ClientController;
-import io.gchape.github.controller.ServerController;
+
+import io.gchape.github.controller.client.ClientController;
+import io.gchape.github.controller.server.ServerController;
 import io.gchape.github.model.ServerModel;
 import io.gchape.github.view.ClientView;
 import io.gchape.github.view.ServerView;
@@ -29,7 +30,7 @@ public class ChessApplication extends Application {
         if (agent.equals("server")) {
             var sv = ServerView.INSTANCE;
             var sc = new ServerController(sv, new ServerModel());
-            sc.startServer("localhost", 8080);
+            sc.startServer("localhost", port);
 
             Scene scene = new Scene(sv.view());
             addExternalCss(scene, "server-view.css");

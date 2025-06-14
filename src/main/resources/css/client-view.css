@@ -1,0 +1,248 @@
+/* Chess Client CSS Styling */
+
+/* Root styling */
+.root {
+    -fx-font-family: "Segoe UI", Arial, sans-serif;
+    -fx-font-size: 14px;
+    -fx-background-color: #2b2b2b;
+    -fx-text-fill: #ffffff;
+}
+
+/* Login Panel */
+.login-panel {
+    -fx-background-color: linear-gradient(to bottom, #3c3c3c, #2b2b2b);
+    -fx-border-color: #555555;
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+}
+
+.title-label {
+    -fx-text-fill: #f0d9b5;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 2, 0, 1, 1);
+}
+
+.login-field {
+    -fx-background-color: #404040;
+    -fx-text-fill: #ffffff;
+    -fx-border-color: #666666;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 10px;
+    -fx-font-size: 14px;
+}
+
+.login-field:focused {
+    -fx-border-color: #f0d9b5;
+    -fx-border-width: 2px;
+}
+
+.primary-button {
+    -fx-background-color: linear-gradient(to bottom, #d4a574, #b8956b);
+    -fx-text-fill: #2b2b2b;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-padding: 10px 20px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 2, 0, 1, 1);
+}
+
+.primary-button:hover {
+    -fx-background-color: linear-gradient(to bottom, #e0b180, #c4a177);
+}
+
+.primary-button:pressed {
+    -fx-background-color: linear-gradient(to bottom, #c89968, #ac8d5f);
+}
+
+.primary-button:disabled {
+    -fx-background-color: #666666;
+    -fx-text-fill: #999999;
+    -fx-opacity: 0.6;
+}
+
+.secondary-button {
+    -fx-background-color: linear-gradient(to bottom, #555555, #404040);
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+    -fx-padding: 8px 16px;
+    -fx-border-color: #777777;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+}
+
+.secondary-button:hover {
+    -fx-background-color: linear-gradient(to bottom, #666666, #505050);
+    -fx-border-color: #888888;
+}
+
+.secondary-button:pressed {
+    -fx-background-color: linear-gradient(to bottom, #444444, #333333);
+}
+
+.surrender-button {
+    -fx-background-color: linear-gradient(to bottom, #cc4444, #aa3333);
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-padding: 8px 16px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+}
+
+.surrender-button:hover {
+    -fx-background-color: linear-gradient(to bottom, #dd5555, #bb4444);
+}
+
+.surrender-button:pressed {
+    -fx-background-color: linear-gradient(to bottom, #bb3333, #992222);
+}
+
+.status-label {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-alignment: center;
+}
+
+.error-label {
+    -fx-text-fill: #ff6666;
+}
+
+.success-label {
+    -fx-text-fill: #66ff66;
+}
+
+/* Game Root */
+.game-root {
+    -fx-background-color: #2b2b2b;
+}
+
+/* Chess Board */
+.chess-board {
+    -fx-background-color: #1a1a1a;
+    -fx-border-color: #8b4513;
+    -fx-border-width: 4px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 3, 3);
+}
+
+.chess-square {
+    -fx-border-width: 0;
+    -fx-background-radius: 0;
+    -fx-cursor: hand;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.chess-square:hover {
+    -fx-opacity: 0.8;
+}
+
+.chess-square:pressed {
+    -fx-opacity: 0.9;
+}
+
+.board-label {
+    -fx-text-fill: #f0d9b5;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-alignment: center;
+    -fx-padding: 5px;
+}
+
+/* Game Info Panel */
+.game-info-panel {
+    -fx-background-color: linear-gradient(to bottom, #3c3c3c, #2b2b2b);
+    -fx-border-color: #555555;
+    -fx-border-width: 0 0 0 2px;
+}
+
+.game-status {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #f0d9b5;
+    -fx-alignment: center;
+    -fx-background-color: #404040;
+    -fx-padding: 10px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+}
+
+.current-player {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+    -fx-alignment: center;
+}
+
+.clock-box {
+    -fx-background-color: #404040;
+    -fx-padding: 10px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-spacing: 5px;
+}
+
+.clock-label {
+    -fx-font-family: "Courier New", monospace;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #00ff00;
+    -fx-alignment: center;
+    -fx-background-color: #000000;
+    -fx-padding: 5px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.section-label {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #f0d9b5;
+}
+
+.move-history {
+    -fx-background-color: #333333;
+    -fx-text-fill: #ffffff;
+    -fx-border-color: #555555;
+    -fx-border-width: 1px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-font-family: "Courier New", monospace;
+    -fx-font-size: 12px;
+}
+
+.move-history:focused {
+    -fx-border-color: #f0d9b5;
+    -fx-border-width: 2px;
+}
+
+/* Menu Bar */
+.menu-bar {
+    -fx-background-color: #404040;
+    -fx-border-color: #555555;
+    -fx-border-width: 0 0 1px 0;
+}
+/* Your existing client styles */
+.login-panel {
+    -fx-background-color: #f8f9fa;
+}
+
+.chess-board {
+    -fx-background-color: #ffffff;
+    -fx-padding: 20;
+}
+
+.chess-square {
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+/* Add more client-specific styles as needed */
