@@ -1,0 +1,13 @@
+.status-text {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-alignment: center;
+}
+
+.highlight-pressed {
+    -fx-opacity: 0.8;
+}
+
+.highlight-moves {
+    -fx-opacity: 0.5;
+}

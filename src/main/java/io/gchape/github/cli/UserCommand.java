@@ -2,7 +2,6 @@ package io.gchape.github.cli;
 
 import io.gchape.github.controller.ClientController;
 import io.gchape.github.controller.ServerController;
-import io.gchape.github.model.ClientModel;
 import io.gchape.github.model.ServerModel;
 import io.gchape.github.view.ClientView;
 import io.gchape.github.view.ServerView;
@@ -10,18 +9,15 @@ import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import org.springframework.shell.command.annotation.Command;
-import org.springframework.shell.command.annotation.Option;
 
 import java.util.Objects;
 
-@Command(group = "Cli Commands")
+@Command
 public class UserCommand {
     private Stage stage;
 
-    @Command(command = "start", group = "Cli Commands")
-    public void start(@Option(required = true, longNames = "user-agent") final String userAgent,
-                      @Option(longNames = "host", defaultValue = "localhost") final String host,
-                      @Option(longNames = "port", defaultValue = "8080") final int port) {
+    @Command(command = "start-server", description = "")
+    public void startServer() {
 
         Platform.runLater(() -> {
             this.stage = new Stage();
@@ -29,20 +25,31 @@ public class UserCommand {
             stage.setHeight(600);
             stage.setWidth(800);
 
-            switch (userAgent) {
-                case "client" -> startClient(host, port);
-                case "server" -> startServer(host, port);
-            }
+            runServer();
 
             stage.show();
         });
     }
 
-    private void startServer(final String host, final int port) {
+    @Command(command = "connect-client", description = "")
+    public void connectClient() {
+        Platform.runLater(() -> {
+            this.stage = new Stage();
+            stage.setTitle("ChessFX");
+            stage.setHeight(800);
+            stage.setWidth(800);
+
+            runClient();
+
+            stage.show();
+        });
+    }
+
+    private void runServer() {
         ServerView serverView = ServerView.INSTANCE;
         var serverController = new ServerController(serverView, new ServerModel());
 
-        serverController.startServer(host, port);
+        serverController.startServer("localhost", 8080);
 
         var scene = new Scene(serverView.view());
         stage.setScene(scene);
@@ -56,11 +63,12 @@ public class UserCommand {
         addExternalCss(scene, "server-view.css");
     }
 
-    private void startClient(final String host, final int port) {
+    private void runClient() {
         var clientView = new ClientView();
-        var clientController = new ClientController(clientView, new ClientModel());
+        var clientController = new ClientController();
+        clientView.setClientController(clientController);
 
-        clientController.startClient(host, port);
+        clientController.startClient("localhost", 8080);
 
         var scene = new Scene(clientView.view());
         stage.setScene(scene);
