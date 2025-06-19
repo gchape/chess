@@ -27,18 +27,20 @@ public class Server implements Closeable {
     public static final Charset CHARSET = StandardCharsets.UTF_8;
     private final IntegerProperty connectedClients;
     private final StringProperty serverStatus;
-
-    private final ByteBuffer cache;
+    private final StringBuilder messageHistory;
     private final ExecutorService executorService;
     private final ConcurrentHashMap<SocketChannel, ClientMode> connections;
-
     private Selector clientSelector;
     private Selector acceptSelector;
     private ServerSocketChannel server;
 
+    volatile private boolean player1;
+    volatile private boolean player2;
+    volatile private boolean running = true;
+
     public Server() {
         this.connections = new ConcurrentHashMap<>();
-        this.cache = ByteBuffer.allocate(16 * 1024);
+        this.messageHistory = new StringBuilder(); // Initialize message history
         this.executorService = Executors.newFixedThreadPool(2);
 
         this.serverStatus = new SimpleStringProperty();
@@ -77,7 +79,7 @@ public class Server implements Closeable {
 
     private void watchAcceptable() {
         try {
-            while (!Thread.currentThread().isInterrupted()) {
+            while (running && !Thread.currentThread().isInterrupted()) {
                 if (acceptSelector.select(1000) == 0) {
                     continue;
                 }
@@ -95,7 +97,9 @@ public class Server implements Closeable {
                 }
             }
         } catch (IOException e) {
-            System.err.println(e.getMessage());
+            if (running) {
+                System.err.println("Error in watchAcceptable: " + e.getMessage());
+            }
         }
     }
 
@@ -118,7 +122,7 @@ public class Server implements Closeable {
 
     private void watchReadable() {
         try {
-            while (!Thread.currentThread().isInterrupted()) {
+            while (running && !Thread.currentThread().isInterrupted()) {
                 if (clientSelector.select(1000) == 0) {
                     continue;
                 }
@@ -142,7 +146,9 @@ public class Server implements Closeable {
                 }
             }
         } catch (IOException e) {
-            System.err.println(e.getMessage());
+            if (running) {
+                System.err.println("Error in watchReadable: " + e.getMessage());
+            }
         }
     }
 
@@ -162,11 +168,12 @@ public class Server implements Closeable {
         var message = CHARSET.decode(buffer).toString().trim();
 
         if (!message.isEmpty()) {
-            synchronized (cache) {
-                cache.put(CHARSET.encode("%s%n".formatted(message)));
+            synchronized (messageHistory) {
+                messageHistory.append(message).append("\n");
             }
 
             updateState("Received={ %s } from client.".formatted(message), 0);
+            System.out.println("Server received: " + message);
 
             broadcastMessage(message, clientChannel);
         }
@@ -182,8 +189,10 @@ public class Server implements Closeable {
                 if (!client.equals(sender) && client.isConnected()) {
                     try {
                         broadcastBuffer.rewind();
-                        client.write(broadcastBuffer);
+                        int bytesWritten = client.write(broadcastBuffer);
+                        System.out.println("Broadcasted " + bytesWritten + " bytes to client: " + message);
                     } catch (IOException e) {
+                        System.err.println("Failed to broadcast to client: " + e.getMessage());
                         var key = client.keyFor(clientSelector);
                         if (key != null) {
                             closeClient(client, key);
@@ -195,27 +204,43 @@ public class Server implements Closeable {
     }
 
     private void syncState(SocketChannel clientChannel) throws IOException {
-        synchronized (cache) {
-            ByteBuffer snapshot = cache.asReadOnlyBuffer().flip();
+        ClientMode clientMode;
+        String modeMessage;
 
-            ClientMode clientMode;
-            if (connectedClients.get() > 2) {
-                clientMode = ClientMode.SPECTATOR;
+        if (player1 && player2) {
+            clientMode = ClientMode.SPECTATOR;
+            modeMessage = "SPECTATOR:NONE\n";
+        } else {
+            clientMode = ClientMode.PLAYER;
+
+            if (!player1) {
+                player1 = true;
+                modeMessage = "PLAYER:WHITE\n";
             } else {
-                clientMode = ClientMode.PLAYER;
+                player2 = true;
+                modeMessage = "PLAYER:BLACK\n";
             }
+        }
 
-            connections.put(clientChannel, clientMode);
+        connections.put(clientChannel, clientMode);
 
-            ByteBuffer mode = CHARSET.encode("%s%n".formatted(clientMode));
-            ByteBuffer response = ByteBuffer.allocate(mode.remaining() + snapshot.remaining());
+        // Send the client mode first
+        ByteBuffer modeBuffer = CHARSET.encode(modeMessage);
+        while (modeBuffer.hasRemaining()) {
+            clientChannel.write(modeBuffer);
+        }
 
-            response.put(mode);
-            response.put(snapshot);
+        System.out.println("Sent to client: " + modeMessage.trim());
 
-            response.flip();
-            while (response.hasRemaining()) {
-                clientChannel.write(response);
+        // Send message history if any exists
+        synchronized (messageHistory) {
+            if (!messageHistory.isEmpty()) {
+                String history = messageHistory.toString();
+                ByteBuffer historyBuffer = CHARSET.encode(history);
+                while (historyBuffer.hasRemaining()) {
+                    clientChannel.write(historyBuffer);
+                }
+                System.out.println("Sent message history to new client: " + history.replace("\n", " | "));
             }
         }
     }
@@ -230,9 +255,22 @@ public class Server implements Closeable {
         updateState("Client disconnected at={ %s }.".formatted(LocalTime.now()), -1);
 
         if (mode == ClientMode.PLAYER) {
-            updateState("Session closed at={ %s }".formatted(LocalTime.now()), 0);
+            // Reset player flags when a player disconnects
+            if (player1 && player2) {
+                // If both were connected, we need to figure out which one disconnected
+                // For simplicity, let's reset both and let reconnecting clients get reassigned
+                player1 = false;
+                player2 = false;
+            } else if (player1) {
+                player1 = false;
+            } else if (player2) {
+                player2 = false;
+            }
 
-            disconnectClients();
+            updateState("Player disconnected - game session affected at={ %s }".formatted(LocalTime.now()), 0);
+
+            // Optionally disconnect all clients to restart the game
+            // disconnectClients();
         }
     }
 
@@ -249,12 +287,24 @@ public class Server implements Closeable {
 
     @Override
     public void close() throws IOException {
+        running = false;
+
         disconnectClients();
 
-        server.close();
-        clientSelector.close();
-        acceptSelector.close();
-        executorService.shutdownNow();
+        if (server != null && server.isOpen()) {
+            server.close();
+        }
+
+        if (clientSelector != null && clientSelector.isOpen()) {
+            clientSelector.close();
+        }
+        if (acceptSelector != null && acceptSelector.isOpen()) {
+            acceptSelector.close();
+        }
+
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
     }
 
     private void disconnectClients() {
@@ -264,11 +314,13 @@ public class Server implements Closeable {
                     try {
                         socketChannel.close();
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        // Ignore errors during shutdown
                     }
                 });
 
         connections.clear();
         connectedClients.set(0);
+        player1 = false;
+        player2 = false;
     }
 }

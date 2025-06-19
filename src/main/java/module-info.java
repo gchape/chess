@@ -15,4 +15,6 @@ open module io.gchape.github.chess {
     exports io.gchape.github.view;
     exports io.gchape.github.model;
     exports io.gchape.github.controller;
+    exports io.gchape.github.model.entity;
+    exports io.gchape.github.model.service;
 }

@@ -3,10 +3,8 @@ package io.gchape.github.controller.client;
 import io.gchape.github.controller.server.Server;
 import io.gchape.github.model.entity.ClientMode;
 
-import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -14,7 +12,6 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -26,10 +23,12 @@ public class Client implements Closeable {
     private final Selector readSelector;
     private final Selector writeSelector;
 
+    private final Queue<String> incoming;
     private final Queue<String> outgoing;
     private final ExecutorService executorService;
 
     private volatile ClientMode clientMode;
+    private volatile boolean running = true;
 
     public Client(final String host, final int port) {
         try {
@@ -42,10 +41,10 @@ public class Client implements Closeable {
             client.register(writeSelector, 0);
             client.register(readSelector, SelectionKey.OP_READ, ByteBuffer.allocate(1024));
 
+            incoming = new ConcurrentLinkedQueue<>();
             outgoing = new ConcurrentLinkedQueue<>();
-            executorService = Executors.newFixedThreadPool(3);
+            executorService = Executors.newFixedThreadPool(2);
 
-            executorService.submit(this::watchConsole);
             executorService.submit(this::watchReadable);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -54,7 +53,7 @@ public class Client implements Closeable {
 
     private void watchReadable() {
         try {
-            while (!Thread.currentThread().isInterrupted()) {
+            while (running && !Thread.currentThread().isInterrupted()) {
                 if (readSelector.select(1_000) == 0) continue;
 
                 var keys = readSelector.selectedKeys();
@@ -70,6 +69,9 @@ public class Client implements Closeable {
                 }
             }
         } catch (IOException e) {
+            if (running) { // Only log if we're still supposed to be running
+                System.err.println("Error in watchReadable: " + e.getMessage());
+            }
             try {
                 close();
             } catch (IOException ex) {
@@ -80,9 +82,8 @@ public class Client implements Closeable {
 
     private void watchWritable() {
         try {
-            while (!Thread.currentThread().isInterrupted()) {
-                if (writeSelector.select(1_000) == 0)
-                    continue;
+            while (running && !Thread.currentThread().isInterrupted()) {
+                if (writeSelector.select(1_000) == 0) continue;
 
                 var keys = writeSelector.selectedKeys();
                 Iterator<SelectionKey> iterator = keys.iterator();
@@ -93,27 +94,14 @@ public class Client implements Closeable {
 
                     if (key.isValid() && key.isWritable()) {
                         flush();
-
                         key.interestOps(0);
                     }
                 }
             }
         } catch (IOException e) {
-            try {
-                close();
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
+            if (running) {
+                System.err.println("Error in watchWritable: " + e.getMessage());
             }
-        }
-    }
-
-    private void watchConsole() {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                send(line + "\n");
-            }
-        } catch (IOException e) {
             try {
                 close();
             } catch (IOException ex) {
@@ -123,6 +111,8 @@ public class Client implements Closeable {
     }
 
     public void send(final String message) {
+        if (!running) return;
+
         outgoing.offer(message);
 
         var key = client.keyFor(writeSelector);
@@ -148,46 +138,69 @@ public class Client implements Closeable {
 
         if (bytesRead == -1) {
             close();
-
             return;
         } else if (bytesRead == 0) {
             return;
         }
 
         buffer.flip();
-
         parse(Server.CHARSET.decode(buffer));
-
         buffer.clear();
     }
 
     private void parse(final CharBuffer request) {
-        String[] body =
-                request.toString()
-                        .trim()
-                        .split("\\R", -1);
+        String fullMessage = request.toString().trim();
 
-        if (clientMode == null) {
-            clientMode = ClientMode.valueOf(body[0]);
-            body = Arrays.copyOfRange(body, 1, body.length);
+        String[] messages = fullMessage.split("\\n");
 
-            if (clientMode == ClientMode.PLAYER) {
-                executorService.submit(this::watchWritable);
+        for (String message : messages) {
+            message = message.trim();
+            if (message.isEmpty()) continue;
+
+            if (clientMode == null) {
+                // Parse initial client mode message
+                String[] parts = message.split(":");
+                if (parts.length >= 1) {
+                    try {
+                        clientMode = ClientMode.valueOf(parts[0]);
+                        System.out.println("Client mode set to: " + clientMode);
+
+                        if (clientMode == ClientMode.PLAYER) {
+                            executorService.submit(this::watchWritable);
+                        }
+                    } catch (IllegalArgumentException e) {
+                        System.err.println("Invalid client mode: " + parts[0]);
+                    }
+                }
             }
 
-            System.out.println(clientMode);
+            incoming.offer(message);
+            System.out.println("Received message: " + message);
         }
+    }
 
-        System.out.println(Arrays.toString(body));
+    public Queue<String> getIncoming() {
+        return incoming;
     }
 
     @Override
     public void close() throws IOException {
-        client.close();
+        running = false;
 
-        readSelector.close();
-        writeSelector.close();
+        if (client != null && client.isOpen()) {
+            client.close();
+        }
 
-        executorService.shutdownNow();
+        if (readSelector != null && readSelector.isOpen()) {
+            readSelector.close();
+        }
+
+        if (writeSelector != null && writeSelector.isOpen()) {
+            writeSelector.close();
+        }
+
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
     }
 }
