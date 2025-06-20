@@ -1,6 +1,6 @@
-package io.gchape.github.controller.client;
+package io.gchape.github.http.client;
 
-import io.gchape.github.controller.server.Server;
+import io.gchape.github.http.server.Server;
 import io.gchape.github.model.entity.ClientMode;
 
 import java.io.Closeable;

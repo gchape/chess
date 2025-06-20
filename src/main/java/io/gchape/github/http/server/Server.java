@@ -1,4 +1,4 @@
-package io.gchape.github.controller.server;
+package io.gchape.github.http.server;
 
 import io.gchape.github.model.entity.ClientMode;
 import javafx.beans.property.IntegerProperty;
