@@ -1,6 +1,6 @@
 package io.gchape.github.http.server;
 
-import io.gchape.github.model.entity.ClientMode;
+import io.gchape.github.model.entity.Mode;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -33,7 +33,7 @@ public class Server implements Closeable {
     private final StringProperty respMessage;
 
     private final ExecutorService executorService;
-    private final ConcurrentHashMap<SocketChannel, ClientMode> connections;
+    private final ConcurrentHashMap<SocketChannel, Mode> connections;
 
     private Selector clientSelector;
     private Selector acceptSelector;
@@ -212,14 +212,14 @@ public class Server implements Closeable {
     }
 
     private void syncState(SocketChannel clientChannel) throws IOException {
-        ClientMode clientMode;
+        Mode mode;
         String modeMessage;
 
         if (player1 && player2) {
-            clientMode = ClientMode.SPECTATOR;
+            mode = Mode.SPECTATOR;
             modeMessage = "SPECTATOR:NONE\n";
         } else {
-            clientMode = ClientMode.PLAYER;
+            mode = Mode.PLAYER;
 
             if (!player1) {
                 player1 = true;
@@ -230,7 +230,7 @@ public class Server implements Closeable {
             }
         }
 
-        connections.put(clientChannel, clientMode);
+        connections.put(clientChannel, mode);
 
         var modeBuffer = CHARSET.encode(modeMessage);
         while (modeBuffer.hasRemaining()) {
@@ -262,7 +262,7 @@ public class Server implements Closeable {
 
         updateState("Client disconnected at={ %s }.".formatted(LocalTime.now()), -1);
 
-        if (mode == ClientMode.PLAYER) {
+        if (mode == Mode.PLAYER) {
             updateState("Player disconnected - game session affected at={ %s }".formatted(LocalTime.now()), 0);
 
             disconnectClients();

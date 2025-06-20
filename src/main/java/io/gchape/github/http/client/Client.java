@@ -1,7 +1,7 @@
 package io.gchape.github.http.client;
 
 import io.gchape.github.http.server.Server;
-import io.gchape.github.model.entity.ClientMode;
+import io.gchape.github.model.entity.Mode;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -27,7 +27,7 @@ public class Client implements Closeable {
     private final Queue<String> outgoing;
     private final ExecutorService executorService;
 
-    private volatile ClientMode clientMode;
+    private volatile Mode mode;
     private volatile boolean running = true;
 
     public Client(final String host, final int port) {
@@ -157,14 +157,14 @@ public class Client implements Closeable {
             message = message.trim();
             if (message.isEmpty()) continue;
 
-            if (clientMode == null) {
+            if (mode == null) {
                 String[] parts = message.split(":");
                 if (parts.length >= 1) {
                     try {
-                        clientMode = ClientMode.valueOf(parts[0]);
-                        System.out.println("Client mode set to: " + clientMode);
+                        mode = Mode.valueOf(parts[0]);
+                        System.out.println("Client mode set to: " + mode);
 
-                        if (clientMode == ClientMode.PLAYER) {
+                        if (mode == Mode.PLAYER) {
                             executorService.submit(this::watchWritable);
                         }
                     } catch (IllegalArgumentException e) {
