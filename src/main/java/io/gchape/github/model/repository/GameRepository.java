@@ -1,148 +1,133 @@
 package io.gchape.github.model.repository;
 
 import io.gchape.github.model.entity.db.Game;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
-import javax.sql.DataSource;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public class GameRepository {
-    private final DataSource datasource;
+    private final JdbcTemplate jdbcTemplate;
+    private final RowMapper<Game> gameMapper = (rs, rowNum) -> new Game(
+            rs.getInt("id"),
+            rs.getInt("player_white_id"),
+            rs.getInt("player_black_id"),
+            rs.getTimestamp("start_time").toInstant(),
+            rs.getString("gameplay")
+    );
 
-    @Autowired
-    public GameRepository(DataSource datasource) {
-        this.datasource = datasource;
+    public GameRepository(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
 
-    public Optional<Game> findById(final int id) {
-        String sql = "SELECT * FROM games WHERE id = ?";
-        try (var conn = datasource.getConnection();
-             var stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, id);
-            try (var rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(mapToGame(rs));
-                }
-            }
-        } catch (SQLException e) {
+    public Optional<Game> findById(int id) {
+        try {
+            Game game = jdbcTemplate.queryForObject(
+                    "SELECT * FROM games WHERE id = ?",
+                    gameMapper,
+                    id
+            );
+            return Optional.ofNullable(game);
+        } catch (DataAccessException e) {
             System.err.println("Error fetching game by ID: " + e.getMessage());
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 
     public List<Game> findAll() {
-        String sql = "SELECT * FROM games ORDER BY start_time DESC";
-        List<Game> games = new ArrayList<>();
-        try (var conn = datasource.getConnection();
-             var stmt = conn.prepareStatement(sql);
-             var rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                games.add(mapToGame(rs));
-            }
-        } catch (SQLException e) {
+        try {
+            return jdbcTemplate.query(
+                    "SELECT * FROM games ORDER BY start_time DESC",
+                    gameMapper
+            );
+        } catch (DataAccessException e) {
             System.err.println("Error fetching all games: " + e.getMessage());
+            return List.of();
         }
-        return games;
     }
 
-    public List<Game> findByPlayerId(final int playerId) {
-        String sql = """
-                    SELECT * FROM games
-                    WHERE player_white_id = ? OR player_black_id = ?
-                    ORDER BY start_time DESC
-                """;
-        List<Game> games = new ArrayList<>();
-        try (var conn = datasource.getConnection();
-             var stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, playerId);
-            stmt.setInt(2, playerId);
-            try (var rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    games.add(mapToGame(rs));
-                }
-            }
-        } catch (SQLException e) {
+    public List<Game> findByPlayerId(int playerId) {
+        try {
+            return jdbcTemplate.query(
+                    """
+                            SELECT * FROM games
+                            WHERE player_white_id = ? OR player_black_id = ?
+                            ORDER BY start_time DESC
+                            """,
+                    gameMapper,
+                    playerId,
+                    playerId
+            );
+        } catch (DataAccessException e) {
             System.err.println("Error fetching games by player ID: " + e.getMessage());
+            return List.of();
         }
-        return games;
     }
 
-    public Optional<Game> save(final Game game) {
+    public Optional<Game> save(Game game) {
         String sql = """
                     INSERT INTO games (player_white_id, player_black_id, start_time, gameplay)
                     VALUES (?, ?, ?, ?)
                 """;
 
-        try (var conn = datasource.getConnection();
-             var stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setInt(1, game.playerWhiteId());
-            stmt.setInt(2, game.playerBlackId());
-            stmt.setTimestamp(3, Timestamp.from(game.startTime()));
-            stmt.setString(4, game.gameplay());
+        KeyHolder keyHolder = new GeneratedKeyHolder();
 
-            int affectedRows = stmt.executeUpdate();
-            if (affectedRows == 0) {
-                return Optional.empty();
-            }
+        int rows = jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            ps.setInt(1, game.playerWhiteId());
+            ps.setInt(2, game.playerBlackId());
+            ps.setTimestamp(3, Timestamp.from(game.startTime()));
+            ps.setString(4, game.gameplay());
+            return ps;
+        }, keyHolder);
 
-            try (var generatedKeys = stmt.getGeneratedKeys()) {
-                if (generatedKeys.next()) {
-                    int generatedId = generatedKeys.getInt(1);
-                    return Optional.of(new Game(
-                            generatedId,
-                            game.playerWhiteId(),
-                            game.playerBlackId(),
-                            game.startTime(),
-                            game.gameplay()
-                    ));
-                }
-            }
-        } catch (SQLException e) {
-            System.err.println("Error saving game: " + e.getMessage());
+        if (rows == 0 || keyHolder.getKey() == null) {
+            return Optional.empty();
         }
-        return Optional.empty();
+
+        int generatedId = keyHolder.getKey().intValue();
+        return Optional.of(new Game(
+                generatedId,
+                game.playerWhiteId(),
+                game.playerBlackId(),
+                game.startTime(),
+                game.gameplay()
+        ));
     }
 
-    public Optional<Boolean> updateGameplay(final int gameId, final String newGameplay) {
-        String sql = "UPDATE games SET gameplay = ? WHERE id = ?";
-        try (var conn = datasource.getConnection();
-             var stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, newGameplay);
-            stmt.setInt(2, gameId);
-            return Optional.of(stmt.executeUpdate() > 0);
-        } catch (SQLException e) {
+    public Optional<Boolean> updateGameplay(int gameId, String newGameplay) {
+        try {
+            int rows = jdbcTemplate.update(
+                    "UPDATE games SET gameplay = ? WHERE id = ?",
+                    newGameplay,
+                    gameId
+            );
+            return Optional.of(rows > 0);
+        } catch (DataAccessException e) {
             System.err.println("Error updating gameplay: " + e.getMessage());
             return Optional.empty();
         }
     }
 
-    public Optional<Boolean> deleteById(final int gameId) {
-        String sql = "DELETE FROM games WHERE id = ?";
-        try (var conn = datasource.getConnection();
-             var stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, gameId);
-            return Optional.of(stmt.executeUpdate() > 0);
-        } catch (SQLException e) {
+    public Optional<Boolean> deleteById(int gameId) {
+        try {
+            int rows = jdbcTemplate.update(
+                    "DELETE FROM games WHERE id = ?",
+                    gameId
+            );
+            return Optional.of(rows > 0);
+        } catch (DataAccessException e) {
             System.err.println("Error deleting game: " + e.getMessage());
             return Optional.empty();
         }
-    }
-
-    private Game mapToGame(final ResultSet rs) throws SQLException {
-        return new Game(
-                rs.getInt("id"),
-                rs.getInt("player_white_id"),
-                rs.getInt("player_black_id"),
-                rs.getTimestamp("start_time").toInstant(),
-                rs.getString("gameplay")
-        );
     }
 }
