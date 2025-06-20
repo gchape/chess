@@ -69,7 +69,7 @@ public class Client implements Closeable {
                 }
             }
         } catch (IOException e) {
-            if (running) { // Only log if we're still supposed to be running
+            if (running) {
                 System.err.println("Error in watchReadable: " + e.getMessage());
             }
             try {
@@ -158,7 +158,6 @@ public class Client implements Closeable {
             if (message.isEmpty()) continue;
 
             if (clientMode == null) {
-                // Parse initial client mode message
                 String[] parts = message.split(":");
                 if (parts.length >= 1) {
                     try {

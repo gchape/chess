@@ -2,6 +2,7 @@ package io.gchape.github.cli;
 
 import io.gchape.github.controller.ClientController;
 import io.gchape.github.controller.ServerController;
+import io.gchape.github.model.ClientModel;
 import io.gchape.github.model.ServerModel;
 import io.gchape.github.view.ClientView;
 import io.gchape.github.view.ServerView;
@@ -36,7 +37,7 @@ public class UserCommand {
         Platform.runLater(() -> {
             this.stage = new Stage();
             stage.setTitle("ChessFX");
-            stage.setHeight(800);
+            stage.setHeight(600);
             stage.setWidth(800);
 
             runClient();
@@ -49,8 +50,6 @@ public class UserCommand {
         ServerView serverView = ServerView.INSTANCE;
         var serverController = new ServerController(serverView, new ServerModel());
 
-        serverController.startServer("localhost", 8080);
-
         var scene = new Scene(serverView.view());
         stage.setScene(scene);
 
@@ -61,14 +60,14 @@ public class UserCommand {
         });
 
         addExternalCss(scene, "server-view.css");
+
+        serverController.startServer("localhost", 8080);
     }
 
     private void runClient() {
         var clientView = new ClientView();
-        var clientController = new ClientController();
-        clientView.setClientController(clientController);
-
-        clientController.startClient("localhost", 8080);
+        var clientController = new ClientController(clientView, new ClientModel());
+        clientView.setMouseClickHandlers(clientController);
 
         var scene = new Scene(clientView.view());
         stage.setScene(scene);

@@ -3,16 +3,14 @@ package io.gchape.github.model.service;
 import io.gchape.github.model.GameState;
 import io.gchape.github.model.entity.Piece;
 import io.gchape.github.model.entity.Position;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Service
 public class MoveGenerator {
     private static final int BOARD_SIZE = 8;
 
-    public List<Position> generateValidMoves(GameState gameState, Position from) {
+    public List<Position> generateValidMoves(final GameState gameState, final Position from) {
         Piece piece = gameState.getPieceAt(from);
         if (piece == null) return new ArrayList<>();
 
@@ -27,20 +25,20 @@ public class MoveGenerator {
             case WQ, BQ -> generateQueenMoves(moves, gameState, from, piece.color);
             case WK, BK -> generateKingMoves(moves, gameState, from, piece.color);
         }
-
         return moves;
     }
 
-    private void generatePawnMoves(List<Position> moves, GameState gameState, Position from, boolean isWhite) {
+    private void generatePawnMoves(final List<Position> moves,
+                                   final GameState gameState,
+                                   final Position from,
+                                   final boolean isWhite) {
         int direction = isWhite ? -1 : 1;
         int startRow = isWhite ? 6 : 1;
 
-        // Forward move
         Position forward = new Position(from.row() + direction, from.col());
         if (forward.isInBounds() && gameState.getPieceAt(forward) == null) {
             moves.add(forward);
 
-            // Double move from starting position
             if (from.row() == startRow) {
                 Position doubleForward = new Position(from.row() + 2 * direction, from.col());
                 if (doubleForward.isInBounds() && gameState.getPieceAt(doubleForward) == null) {
@@ -49,7 +47,6 @@ public class MoveGenerator {
             }
         }
 
-        // Captures
         for (int dc : new int[]{-1, 1}) {
             Position capture = new Position(from.row() + direction, from.col() + dc);
             if (capture.isInBounds()) {
@@ -61,22 +58,35 @@ public class MoveGenerator {
         }
     }
 
-    private void generateRookMoves(List<Position> moves, GameState gameState, Position from, char color) {
+    private void generateRookMoves(final List<Position> moves,
+                                   final GameState gameState,
+                                   final Position from,
+                                   final char color) {
         int[][] directions = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}};
         generateSlidingMoves(moves, gameState, from, color, directions);
     }
 
-    private void generateBishopMoves(List<Position> moves, GameState gameState, Position from, char color) {
+    private void generateBishopMoves(final List<Position> moves,
+                                     final GameState gameState,
+                                     final Position from,
+                                     final char color) {
         int[][] directions = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
         generateSlidingMoves(moves, gameState, from, color, directions);
     }
 
-    private void generateQueenMoves(List<Position> moves, GameState gameState, Position from, char color) {
+    private void generateQueenMoves(final List<Position> moves,
+                                    final GameState gameState,
+                                    final Position from,
+                                    final char color) {
         int[][] directions = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
         generateSlidingMoves(moves, gameState, from, color, directions);
     }
 
-    private void generateSlidingMoves(List<Position> moves, GameState gameState, Position from, char color, int[][] directions) {
+    private void generateSlidingMoves(final List<Position> moves,
+                                      final GameState gameState,
+                                      final Position from,
+                                      final char color,
+                                      final int[][] directions) {
         for (int[] dir : directions) {
             for (int i = 1; i < BOARD_SIZE; i++) {
                 Position newPos = new Position(from.row() + dir[0] * i, from.col() + dir[1] * i);
@@ -96,7 +106,10 @@ public class MoveGenerator {
         }
     }
 
-    private void generateKnightMoves(List<Position> moves, GameState gameState, Position from, char color) {
+    private void generateKnightMoves(final List<Position> moves,
+                                     final GameState gameState,
+                                     final Position from,
+                                     final char color) {
         int[][] knightMoves = {
                 {-2, -1}, {-2, 1}, {-1, -2}, {-1, 2},
                 {1, -2}, {1, 2}, {2, -1}, {2, 1}
@@ -105,12 +118,19 @@ public class MoveGenerator {
         generateFixedMoves(moves, gameState, from, color, knightMoves);
     }
 
-    private void generateKingMoves(List<Position> moves, GameState gameState, Position from, char color) {
+    private void generateKingMoves(final List<Position> moves,
+                                   final GameState gameState,
+                                   final Position from,
+                                   final char color) {
         int[][] directions = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
         generateFixedMoves(moves, gameState, from, color, directions);
     }
 
-    private void generateFixedMoves(List<Position> moves, GameState gameState, Position from, char color, int[][] moveOffsets) {
+    private void generateFixedMoves(final List<Position> moves,
+                                    final GameState gameState,
+                                    final Position from,
+                                    final char color,
+                                    final int[][] moveOffsets) {
         for (int[] offset : moveOffsets) {
             Position newPos = new Position(from.row() + offset[0], from.col() + offset[1]);
 

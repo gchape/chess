@@ -24,14 +24,24 @@ public class ServerController {
     private void setupBindings() {
         serverModel.serverStatusProperty()
                 .bind(server.serverStatusProperty());
-        serverModel.connectedClientsProperty()
-                .bind(server.connectedClientsProperty());
+        serverModel.clientCountProperty()
+                .bind(server.clientCountProperty());
+        serverModel.respMessageProperty()
+                .bind(server.respMessageProperty());
+
+        serverModel.usernameProperty()
+                .bind(serverView.usernameProperty());
+        serverModel.passwordProperty()
+                .bind(serverView.passwordProperty());
+
+        serverView.respMessageProperty()
+                .bind(serverModel.respMessageProperty());
 
         serverView.serverStatusProperty()
                 .bind(serverModel.serverStatusProperty());
 
-        serverView.connectedClientsProperty()
-                .bind(serverModel.connectedClientsProperty());
+        serverView.clientCountProperty()
+                .bind(serverModel.clientCountProperty());
     }
 
     public void startServer(final String host, final int port) {

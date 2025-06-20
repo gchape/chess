@@ -1,7 +1,6 @@
 open module io.gchape.github.chess {
     requires javafx.controls;
     requires java.desktop;
-    requires atlantafx.base;
 
     requires spring.boot;
     requires spring.boot.autoconfigure;
@@ -9,6 +8,8 @@ open module io.gchape.github.chess {
     requires spring.context;
     requires spring.beans;
     requires spring.core;
+    requires org.jline.terminal;
+    requires atlantafx.base;
 
     exports io.gchape.github;
     exports io.gchape.github.cli;
@@ -17,4 +18,5 @@ open module io.gchape.github.chess {
     exports io.gchape.github.controller;
     exports io.gchape.github.model.entity;
     exports io.gchape.github.model.service;
+    exports io.gchape.github.controller.handlers;
 }

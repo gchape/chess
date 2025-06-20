@@ -41,11 +41,11 @@ public class GameState {
         }
     }
 
-    public boolean isWhite() {
+    public boolean getColor() {
         return isWhite;
     }
 
-    public void setWhite(boolean white) {
+    public void setColor(boolean white) {
         isWhite = white;
     }
 }
