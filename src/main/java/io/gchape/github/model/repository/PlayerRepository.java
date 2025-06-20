@@ -28,7 +28,7 @@ public class PlayerRepository {
         this.datasource = datasource;
     }
 
-    public List<Player> getAllPlayers() {
+    public List<Player> findAll() {
         List<Player> players = new ArrayList<>();
         String sql = "SELECT id, username, email FROM players ORDER BY username";
 
@@ -50,7 +50,7 @@ public class PlayerRepository {
         return players;
     }
 
-    public Optional<Player> getPlayerByEmail(String email) {
+    public Optional<Player> findByEmail(final String email) {
         if (email == null || email.trim().isEmpty()) {
             logger.warn("Attempted to fetch player with null or empty email");
             return Optional.empty();
@@ -80,7 +80,7 @@ public class PlayerRepository {
         return Optional.empty();
     }
 
-    public Optional<Player> getPlayerByUsername(String username) {
+    public Optional<Player> findByUsername(final String username) {
         if (username == null || username.trim().isEmpty()) {
             logger.warn("Attempted to fetch player with null or empty username");
             return Optional.empty();
@@ -110,7 +110,7 @@ public class PlayerRepository {
         return Optional.empty();
     }
 
-    public Optional<Player> getPlayerById(int id) {
+    public Optional<Player> findById(final int id) {
         if (id <= 0) {
             logger.warn("Attempted to fetch player with invalid ID: {}", id);
             return Optional.empty();
@@ -140,7 +140,7 @@ public class PlayerRepository {
         return Optional.empty();
     }
 
-    public boolean insertPlayer(String username, String email, String password) {
+    public boolean save(String username, String email, String password) {
         if (isValidAll(username, email, password)) {
             return false;
         }
@@ -148,12 +148,12 @@ public class PlayerRepository {
         username = username.trim();
         email = email.trim().toLowerCase();
 
-        if (getPlayerByUsername(username).isPresent()) {
+        if (findByUsername(username).isPresent()) {
             logger.warn("Attempted to create player with existing username: {}", username);
             return false;
         }
 
-        if (getPlayerByEmail(email).isPresent()) {
+        if (findByEmail(email).isPresent()) {
             logger.warn("Attempted to create player with existing email: {}", email);
             return false;
         }
@@ -189,13 +189,13 @@ public class PlayerRepository {
         }
     }
 
-    public boolean validateCredentials(String username, String password) {
+    public boolean validateCredentials(final String username, final String password) {
         if (username == null || username.trim().isEmpty() || password == null || password.isEmpty()) {
             logger.warn("Invalid credentials provided - null or empty username/password");
             return false;
         }
 
-        Optional<String> passwordHash = getPasswordHashForUser(username.trim());
+        Optional<String> passwordHash = findPasswordByUsername(username.trim());
 
         if (passwordHash.isPresent()) {
             boolean isValid = BCrypt.checkpw(password, passwordHash.get());
@@ -207,7 +207,7 @@ public class PlayerRepository {
         return false;
     }
 
-    private Optional<String> getPasswordHashForUser(String username) {
+    private Optional<String> findPasswordByUsername(String username) {
         String sql = "SELECT password FROM players WHERE username = ?";
 
         try (Connection conn = datasource.getConnection();
@@ -227,67 +227,6 @@ public class PlayerRepository {
         }
 
         return Optional.empty();
-    }
-
-    public boolean updatePassword(String username, String newPassword) {
-        if (isValidAll(username, "dummy@email.com", newPassword)) {
-            return false;
-        }
-
-        String sql = "UPDATE players SET password = ? WHERE username = ?";
-        String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-
-        try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, hashedPassword);
-            stmt.setString(2, username.trim());
-
-            int affectedRows = stmt.executeUpdate();
-            boolean success = affectedRows > 0;
-
-            if (success) {
-                logger.info("Successfully updated password for user: {}", username);
-            } else {
-                logger.warn("No user found to update password: {}", username);
-            }
-
-            return success;
-
-        } catch (SQLException e) {
-            logger.error("Error updating password for user: {}", username, e);
-            return false;
-        }
-    }
-
-    public boolean deletePlayer(String username) {
-        if (username == null || username.trim().isEmpty()) {
-            logger.warn("Attempted to delete player with null or empty username");
-            return false;
-        }
-
-        String sql = "DELETE FROM players WHERE username = ?";
-
-        try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, username.trim());
-
-            int affectedRows = stmt.executeUpdate();
-            boolean success = affectedRows > 0;
-
-            if (success) {
-                logger.info("Successfully deleted player: {}", username);
-            } else {
-                logger.warn("No player found to delete: {}", username);
-            }
-
-            return success;
-
-        } catch (SQLException e) {
-            logger.error("Error deleting player: {}", username, e);
-            return false;
-        }
     }
 
     private Player createPlayerFromResultSet(ResultSet rs) throws SQLException {

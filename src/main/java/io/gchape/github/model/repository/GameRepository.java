@@ -22,14 +22,14 @@ public class GameRepository {
         this.datasource = datasource;
     }
 
-    public Optional<Game> getGameById(int id) {
+    public Optional<Game> findById(final int id) {
         String sql = "SELECT * FROM games WHERE id = ?";
         try (var conn = datasource.getConnection();
              var stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, id);
             try (var rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return Optional.of(mapRowToGame(rs));
+                    return Optional.of(mapToGame(rs));
                 }
             }
         } catch (SQLException e) {
@@ -38,14 +38,14 @@ public class GameRepository {
         return Optional.empty();
     }
 
-    public List<Game> getAllGames() {
+    public List<Game> findAll() {
         String sql = "SELECT * FROM games ORDER BY start_time DESC";
         List<Game> games = new ArrayList<>();
         try (var conn = datasource.getConnection();
              var stmt = conn.prepareStatement(sql);
              var rs = stmt.executeQuery()) {
             while (rs.next()) {
-                games.add(mapRowToGame(rs));
+                games.add(mapToGame(rs));
             }
         } catch (SQLException e) {
             System.err.println("Error fetching all games: " + e.getMessage());
@@ -53,7 +53,7 @@ public class GameRepository {
         return games;
     }
 
-    public List<Game> getGamesByPlayerId(int playerId) {
+    public List<Game> findByPlayerId(final int playerId) {
         String sql = """
                     SELECT * FROM games
                     WHERE player_white_id = ? OR player_black_id = ?
@@ -66,7 +66,7 @@ public class GameRepository {
             stmt.setInt(2, playerId);
             try (var rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    games.add(mapRowToGame(rs));
+                    games.add(mapToGame(rs));
                 }
             }
         } catch (SQLException e) {
@@ -75,7 +75,7 @@ public class GameRepository {
         return games;
     }
 
-    public Optional<Game> persist(final Game game) {
+    public Optional<Game> save(final Game game) {
         String sql = """
                     INSERT INTO games (player_white_id, player_black_id, start_time, gameplay)
                     VALUES (?, ?, ?, ?)
@@ -111,7 +111,7 @@ public class GameRepository {
         return Optional.empty();
     }
 
-    public Optional<Boolean> updateGameplay(int gameId, String newGameplay) {
+    public Optional<Boolean> updateGameplay(final int gameId, final String newGameplay) {
         String sql = "UPDATE games SET gameplay = ? WHERE id = ?";
         try (var conn = datasource.getConnection();
              var stmt = conn.prepareStatement(sql)) {
@@ -124,7 +124,7 @@ public class GameRepository {
         }
     }
 
-    public Optional<Boolean> deleteGameById(int gameId) {
+    public Optional<Boolean> deleteById(final int gameId) {
         String sql = "DELETE FROM games WHERE id = ?";
         try (var conn = datasource.getConnection();
              var stmt = conn.prepareStatement(sql)) {
@@ -136,7 +136,7 @@ public class GameRepository {
         }
     }
 
-    private Game mapRowToGame(ResultSet rs) throws SQLException {
+    private Game mapToGame(final ResultSet rs) throws SQLException {
         return new Game(
                 rs.getInt("id"),
                 rs.getInt("player_white_id"),

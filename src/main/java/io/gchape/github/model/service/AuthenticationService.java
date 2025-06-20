@@ -70,7 +70,7 @@ public class AuthenticationService {
                 return false;
             }
 
-            boolean success = playerRepository.insertPlayer(username, email, password);
+            boolean success = playerRepository.save(username, email, password);
 
             if (success) {
                 logger.info("Successful registration for user: {}", username);
@@ -163,12 +163,12 @@ public class AuthenticationService {
     private boolean isValidRegistrationData(String username, String email, String password) {
         // Check if username already exists
         try {
-            if (playerRepository.getPlayerByUsername(username).isPresent()) {
+            if (playerRepository.findByUsername(username).isPresent()) {
                 uiManager.showError("Username already exists. Please choose a different one.");
                 return false;
             }
 
-            if (playerRepository.getPlayerByEmail(email).isPresent()) {
+            if (playerRepository.findByEmail(email).isPresent()) {
                 uiManager.showError("Email already registered. Please use a different email or try logging in.");
                 return false;
             }

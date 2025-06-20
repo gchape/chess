@@ -1,6 +1,6 @@
 package io.gchape.github.view;
 
-import io.gchape.github.controller.handlers.MouseClickHandlers;
+import io.gchape.github.controller.events.ClientOnClickEvents;
 import io.gchape.github.model.GameState;
 import io.gchape.github.model.entity.Piece;
 import io.gchape.github.model.entity.Position;
@@ -46,7 +46,7 @@ public class ClientView {
     private Button guestLoginButton;
     private Button registerButton;
 
-    private MouseClickHandlers mouseClickHandlers;
+    private ClientOnClickEvents clientOnClickEvents;
 
     public ClientView() {
         rootLayout = new BorderPane();
@@ -165,7 +165,7 @@ public class ClientView {
         final StackPane square = new StackPane(tile);
         square.setUserData(new Position(row, col));
 
-        square.setOnMouseClicked(mouseClickHandlers::onSquareClicked);
+        square.setOnMouseClicked(clientOnClickEvents::onSquareClicked);
 
         return square;
     }
@@ -209,12 +209,12 @@ public class ClientView {
         }
     }
 
-    public void setMouseClickHandlers(final MouseClickHandlers handlers) {
-        this.mouseClickHandlers = handlers;
+    public void setOnClickHandler(final ClientOnClickEvents onClickHandler) {
+        this.clientOnClickEvents = onClickHandler;
 
-        registerButton.setOnMouseClicked(handlers::onRegisterClicked);
-        loginButton.setOnMouseClicked(handlers::onLoginClicked);
-        guestLoginButton.setOnMouseClicked(handlers::onGuestClicked);
+        registerButton.setOnMouseClicked(onClickHandler::onRegisterClicked);
+        loginButton.setOnMouseClicked(onClickHandler::onLoginClicked);
+        guestLoginButton.setOnMouseClicked(onClickHandler::onGuestClicked);
     }
 
     public GridPane getBoard() {

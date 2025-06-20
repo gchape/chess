@@ -17,7 +17,7 @@ import org.springframework.shell.command.annotation.CommandScan;
         "io.gchape.github.controller",
 })
 @CommandScan(basePackageClasses = Commands.class)
-public class ChessApplication extends SpringApplication {
+    public class ChessApplication extends SpringApplication {
 
     public static void main(String[] args) {
         Platform.startup(() ->
