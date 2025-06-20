@@ -4,269 +4,161 @@ import io.gchape.github.model.entity.db.Player;
 import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public class PlayerRepository {
     private static final Logger logger = LoggerFactory.getLogger(PlayerRepository.class);
+    private final JdbcTemplate jdbcTemplate;
+    private final RowMapper<Player> playerMapper = (rs, rowNum) -> new Player(
+            rs.getInt("id"),
+            rs.getString("username"),
+            rs.getString("email")
+    );
 
-    private final DataSource datasource;
-
-    @Autowired
-    public PlayerRepository(DataSource datasource) {
-        this.datasource = datasource;
+    public PlayerRepository(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     public List<Player> findAll() {
-        List<Player> players = new ArrayList<>();
         String sql = "SELECT id, username, email FROM players ORDER BY username";
-
-        try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-                players.add(createPlayerFromResultSet(rs));
-            }
+        try {
+            List<Player> players = jdbcTemplate.query(sql, playerMapper);
             logger.debug("Retrieved {} players from database", players.size());
-
-        } catch (SQLException e) {
+            return players;
+        } catch (DataAccessException e) {
             logger.error("Error fetching all players", e);
-            throw new DataAccessException("Failed to retrieve players", e) {
-            };
+            throw e;
         }
-
-        return players;
     }
 
-    public Optional<Player> findByEmail(final String email) {
+    public Optional<Player> findByEmail(String email) {
         if (email == null || email.trim().isEmpty()) {
             logger.warn("Attempted to fetch player with null or empty email");
             return Optional.empty();
         }
 
         String sql = "SELECT id, username, email FROM players WHERE email = ?";
-
-        try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, email.trim().toLowerCase());
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    Player player = createPlayerFromResultSet(rs);
-                    logger.debug("Found player by email: {}", email);
-                    return Optional.of(player);
-                }
-            }
-        } catch (SQLException e) {
-            logger.error("Error fetching player by email: {}", email, e);
-            throw new DataAccessException("Failed to retrieve player by email", e) {
-            };
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(sql, playerMapper, email.trim().toLowerCase()));
+        } catch (DataAccessException e) {
+            logger.debug("No player found with email: {}", email);
+            return Optional.empty();
         }
-
-        logger.debug("No player found with email: {}", email);
-        return Optional.empty();
     }
 
-    public Optional<Player> findByUsername(final String username) {
+    public Optional<Player> findByUsername(String username) {
         if (username == null || username.trim().isEmpty()) {
             logger.warn("Attempted to fetch player with null or empty username");
             return Optional.empty();
         }
 
         String sql = "SELECT id, username, email FROM players WHERE username = ?";
-
-        try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, username.trim());
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    Player player = createPlayerFromResultSet(rs);
-                    logger.debug("Found player by username: {}", username);
-                    return Optional.of(player);
-                }
-            }
-        } catch (SQLException e) {
-            logger.error("Error fetching player by username: {}", username, e);
-            throw new DataAccessException("Failed to retrieve player by username", e) {
-            };
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(sql, playerMapper, username.trim()));
+        } catch (DataAccessException e) {
+            logger.debug("No player found with username: {}", username);
+            return Optional.empty();
         }
-
-        logger.debug("No player found with username: {}", username);
-        return Optional.empty();
     }
 
-    public Optional<Player> findById(final int id) {
+    public Optional<Player> findById(int id) {
         if (id <= 0) {
             logger.warn("Attempted to fetch player with invalid ID: {}", id);
             return Optional.empty();
         }
 
         String sql = "SELECT id, username, email FROM players WHERE id = ?";
-
-        try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setInt(1, id);
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    Player player = createPlayerFromResultSet(rs);
-                    logger.debug("Found player by ID: {}", id);
-                    return Optional.of(player);
-                }
-            }
-        } catch (SQLException e) {
-            logger.error("Error fetching player by ID: {}", id, e);
-            throw new DataAccessException("Failed to retrieve player by ID", e) {
-            };
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(sql, playerMapper, id));
+        } catch (DataAccessException e) {
+            logger.debug("No player found with ID: {}", id);
+            return Optional.empty();
         }
-
-        logger.debug("No player found with ID: {}", id);
-        return Optional.empty();
     }
 
     public boolean save(String username, String email, String password) {
-        if (isValidAll(username, email, password)) {
+        if (isInvalid(username, email, password)) {
             return false;
         }
 
         username = username.trim();
         email = email.trim().toLowerCase();
 
-        if (findByUsername(username).isPresent()) {
-            logger.warn("Attempted to create player with existing username: {}", username);
-            return false;
-        }
-
-        if (findByEmail(email).isPresent()) {
-            logger.warn("Attempted to create player with existing email: {}", email);
+        if (findByUsername(username).isPresent() || findByEmail(email).isPresent()) {
+            logger.warn("Attempted to create player with existing username or email");
             return false;
         }
 
         String sql = "INSERT INTO players (username, email, password) VALUES (?, ?, ?)";
         String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
 
-        try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, username);
-            stmt.setString(2, email);
-            stmt.setString(3, hashedPassword);
-
-            int affectedRows = stmt.executeUpdate();
-            boolean success = affectedRows > 0;
-
-            if (success) {
+        try {
+            int rows = jdbcTemplate.update(sql, username, email, hashedPassword);
+            if (rows > 0) {
                 logger.info("Successfully created player: {}", username);
+                return true;
             } else {
                 logger.warn("Failed to create player: {}", username);
+                return false;
             }
-
-            return success;
-
-        } catch (SQLException e) {
-            if (e.getErrorCode() == 1062) { // MySQL duplicate entry error
-                logger.warn("Duplicate entry attempted for username: {} or email: {}", username, email);
-            } else {
-                logger.error("Error inserting player: {}", username, e);
-            }
+        } catch (DataAccessException e) {
+            logger.error("Error inserting player: {}", username, e);
             return false;
         }
     }
 
-    public boolean validateCredentials(final String username, final String password) {
+    public boolean validateCredentials(String username, String password) {
         if (username == null || username.trim().isEmpty() || password == null || password.isEmpty()) {
-            logger.warn("Invalid credentials provided - null or empty username/password");
+            logger.warn("Invalid credentials provided");
             return false;
         }
 
-        Optional<String> passwordHash = findPasswordByUsername(username.trim());
+        Optional<String> hashed = findPasswordByUsername(username.trim());
+        boolean isValid = hashed.filter(h -> BCrypt.checkpw(password, h)).isPresent();
 
-        if (passwordHash.isPresent()) {
-            boolean isValid = BCrypt.checkpw(password, passwordHash.get());
-            logger.debug("Credential validation for user {}: {}", username, isValid ? "successful" : "failed");
-            return isValid;
-        }
-
-        logger.debug("No user found for credential validation: {}", username);
-        return false;
+        logger.debug("Credential validation for user {}: {}", username, isValid ? "successful" : "failed");
+        return isValid;
     }
 
     private Optional<String> findPasswordByUsername(String username) {
         String sql = "SELECT password FROM players WHERE username = ?";
-
-        try (Connection conn = datasource.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setString(1, username);
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(rs.getString("password"));
-                }
-            }
-        } catch (SQLException e) {
-            logger.error("Error fetching password hash for user: {}", username, e);
-            throw new DataAccessException("Failed to retrieve password hash", e) {
-            };
+        try {
+            String hash = jdbcTemplate.queryForObject(sql, String.class, username);
+            return Optional.ofNullable(hash);
+        } catch (DataAccessException e) {
+            logger.debug("No password found for user: {}", username);
+            return Optional.empty();
         }
-
-        return Optional.empty();
     }
 
-    private Player createPlayerFromResultSet(ResultSet rs) throws SQLException {
-        return new Player(
-                rs.getInt("id"),
-                rs.getString("username"),
-                rs.getString("email")
-        );
-    }
-
-    private boolean isValidAll(String username, String email, String password) {
+    private boolean isInvalid(String username, String email, String password) {
         if (username == null || username.trim().isEmpty()) {
             logger.warn("Invalid username: null or empty");
             return true;
         }
-
-        if (email == null || email.trim().isEmpty() || !isValidEmail(email)) {
+        if (email == null || email.trim().isEmpty() || !email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
             logger.warn("Invalid email: {}", email);
             return true;
         }
-
         if (password == null || password.length() < 6) {
-            logger.warn("Invalid password: null or too short");
+            logger.warn("Invalid password: too short");
             return true;
         }
-
         if (username.trim().length() > 50) {
             logger.warn("Username too long: {}", username.length());
             return true;
         }
-
         if (email.trim().length() > 100) {
             logger.warn("Email too long: {}", email.length());
             return true;
         }
-
         return false;
-    }
-
-    private boolean isValidEmail(String email) {
-        return email != null && email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
     }
 }
