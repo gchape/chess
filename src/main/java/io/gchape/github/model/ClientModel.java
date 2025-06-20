@@ -6,25 +6,37 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ClientModel {
-    private final StringProperty email;
-    private final StringProperty username;
-    private final StringProperty password;
+    private final StringProperty registerEmail;
+    private final StringProperty registerUsername;
+    private final StringProperty registerPassword;
+    private final StringProperty loginUsername;
+    private final StringProperty loginPassword;
 
     public ClientModel() {
-        email = new SimpleStringProperty();
-        password = new SimpleStringProperty();
-        username = new SimpleStringProperty();
+        registerEmail = new SimpleStringProperty();
+        registerPassword = new SimpleStringProperty();
+        registerUsername = new SimpleStringProperty();
+        loginUsername = new SimpleStringProperty();
+        loginPassword = new SimpleStringProperty();
     }
 
-    public StringProperty emailProperty() {
-        return email;
+    public StringProperty registerEmailProperty() {
+        return registerEmail;
     }
 
-    public StringProperty usernameProperty() {
-        return username;
+    public StringProperty registerUsernameProperty() {
+        return registerUsername;
     }
 
-    public StringProperty passwordProperty() {
-        return password;
+    public StringProperty registerPasswordProperty() {
+        return registerPassword;
+    }
+
+    public StringProperty loginUsernameProperty() {
+        return loginUsername;
+    }
+
+    public StringProperty loginPasswordProperty() {
+        return loginPassword;
     }
 }

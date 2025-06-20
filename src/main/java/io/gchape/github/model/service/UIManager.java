@@ -6,6 +6,7 @@ import io.gchape.github.view.ClientView;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
@@ -89,13 +90,17 @@ public class UIManager {
     }
 
     public void showError(String message) {
-        System.err.println("Error: " + message);
-        // TODO: Show actual UI error dialog
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     public void showSuccess(String message) {
-        System.out.println("Success: " + message);
-        // TODO: Show actual UI success dialog
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Information");
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private StackPane getSquare(Position position) {

@@ -1,7 +1,6 @@
 package io.gchape.github.model.repository;
 
 import io.gchape.github.model.entity.db.Game;
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
@@ -21,27 +20,6 @@ public class GameRepository {
     @Autowired
     public GameRepository(DataSource datasource) {
         this.datasource = datasource;
-    }
-
-    @PostConstruct
-    private void initializeSchema() {
-        String sql = """
-                    CREATE TABLE IF NOT EXISTS games (
-                        id INT PRIMARY KEY AUTO_INCREMENT,
-                        player_white_id INT NOT NULL,
-                        player_black_id INT NOT NULL,
-                        start_time TIMESTAMP NOT NULL,
-                        gameplay TEXT NOT NULL,
-                        FOREIGN KEY (player_white_id) REFERENCES players(id),
-                        FOREIGN KEY (player_black_id) REFERENCES players(id)
-                    )
-                """;
-
-        try (var conn = datasource.getConnection();
-             var stmt = conn.createStatement()) {
-            stmt.execute(sql);
-        } catch (SQLException ignored) {
-        }
     }
 
     public Optional<Game> getGameById(int id) {

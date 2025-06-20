@@ -33,9 +33,11 @@ public class ClientView {
     private final Map<Piece, Image> pieceImages = new HashMap<>();
     private final BorderPane rootLayout;
 
-    private final StringProperty email = new SimpleStringProperty();
-    private final StringProperty username = new SimpleStringProperty();
-    private final StringProperty password = new SimpleStringProperty();
+    private final StringProperty registerEmail = new SimpleStringProperty();
+    private final StringProperty registerUsername = new SimpleStringProperty();
+    private final StringProperty registerPassword = new SimpleStringProperty();
+    private final StringProperty loginUsername = new SimpleStringProperty();
+    private final StringProperty loginPassword = new SimpleStringProperty();
 
     public Position selectedPosition;
 
@@ -119,15 +121,15 @@ public class ClientView {
 
         final TextField usernameField = new TextField();
         usernameField.setPromptText("Username");
-        username.bind(usernameField.textProperty());
+        registerUsername.bindBidirectional(usernameField.textProperty());
 
         final PasswordField passwordField = new PasswordField();
         passwordField.setPromptText("Password");
-        password.bind(passwordField.textProperty());
+        registerPassword.bindBidirectional(passwordField.textProperty());
 
         final TextField emailField = new TextField();
         emailField.setPromptText("Email");
-        email.bind(emailField.textProperty());
+        registerEmail.bindBidirectional(emailField.textProperty());
 
         registerButton = new Button("Register");
 
@@ -144,11 +146,11 @@ public class ClientView {
 
         final TextField usernameField = new TextField();
         usernameField.setPromptText("Username");
-        username.bind(usernameField.textProperty());
+        loginUsername.bindBidirectional(usernameField.textProperty());
 
         final PasswordField passwordField = new PasswordField();
         passwordField.setPromptText("Password");
-        password.bind(passwordField.textProperty());
+        loginPassword.bindBidirectional(passwordField.textProperty());
 
         loginButton = new Button("Login");
 
@@ -219,15 +221,23 @@ public class ClientView {
         return board;
     }
 
-    public StringProperty emailProperty() {
-        return email;
+    public StringProperty registerEmailProperty() {
+        return registerEmail;
     }
 
-    public StringProperty usernameProperty() {
-        return username;
+    public StringProperty registerUsernameProperty() {
+        return registerUsername;
     }
 
-    public StringProperty passwordProperty() {
-        return password;
+    public StringProperty registerPasswordProperty() {
+        return registerPassword;
+    }
+
+    public StringProperty loginUsernameProperty() {
+        return loginUsername;
+    }
+
+    public StringProperty loginPasswordProperty() {
+        return loginPassword;
     }
 }
