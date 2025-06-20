@@ -1,18 +1,21 @@
 package io.gchape.github.view;
 
-import io.gchape.github.controller.ClientController;
-import io.gchape.github.model.entity.Move;
+import io.gchape.github.controller.handlers.MouseClickHandlers;
+import io.gchape.github.model.GameState;
 import io.gchape.github.model.entity.Piece;
 import io.gchape.github.model.entity.Position;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 
@@ -24,32 +27,47 @@ public class ClientView {
     private static final Color LIGHT_SQUARE = Color.WHEAT;
     private static final Color DARK_SQUARE = Color.SADDLEBROWN;
 
-    private final GridPane board;
-    private final BorderPane root;
-
+    public final List<StackPane> highlightedSquares = new ArrayList<>();
     private final Map<Piece, Image> pieceImages = new HashMap<>();
-    private final List<StackPane> highlightedSquares = new ArrayList<>();
+    private final BorderPane rootLayout;
 
-    private ClientController clientController;
+    private final StringProperty email = new SimpleStringProperty();
+    private final StringProperty username = new SimpleStringProperty();
+    private final StringProperty password = new SimpleStringProperty();
 
-    private Position selectedPosition;
+    public Position selectedPosition;
+
+    private GridPane board;
+    private Button loginButton;
+    private Button guestLoginButton;
+    private Button registerButton;
+
+    private MouseClickHandlers mouseClickHandlers;
 
     public ClientView() {
-        loadPieceImages();
-        board = createBoard();
+        rootLayout = new BorderPane();
+        rootLayout.setCenter(createFormsContainer());
+        rootLayout.setBottom(createGuestLoginContainer());
+    }
 
-        root = new BorderPane();
-        root.setCenter(board);
+    private HBox createGuestLoginContainer() {
+        var guestLoginButton = createGuestLoginButton();
+        var guestLoginContainer = new HBox(guestLoginButton);
+
+        guestLoginContainer.getStyleClass().add("guest-login-container");
+        HBox.setMargin(guestLoginButton, new Insets(0, 0, 8, 0));
+
+        return guestLoginContainer;
     }
 
     public Region view() {
-        return root;
+        return rootLayout;
     }
 
     private void loadPieceImages() {
         for (Piece piece : Piece.values()) {
             try {
-                var image = new Image(Objects.requireNonNull(
+                final Image image = new Image(Objects.requireNonNull(
                         getClass().getResourceAsStream("/images/" + piece.imageName() + ".png"))
                 );
                 pieceImages.put(piece, image);
@@ -59,40 +77,100 @@ public class ClientView {
         }
     }
 
-    private GridPane createBoard() {
-        var grid = new GridPane();
+    private GridPane setupBoard() {
+        final GridPane grid = new GridPane();
         grid.setAlignment(Pos.CENTER);
 
         for (int row = 0; row < BOARD_SIZE; row++) {
             for (int col = 0; col < BOARD_SIZE; col++) {
-                StackPane square = createSquare(row, col);
-                grid.add(square, col, row);
+                grid.add(createSquare(row, col), col, row);
             }
         }
 
         return grid;
     }
 
-    private StackPane createSquare(int row, int col) {
-        var rect = new Rectangle(TILE_SIZE, TILE_SIZE);
-        var light = (row + col) % 2 == 0;
-        rect.setFill(light ? LIGHT_SQUARE : DARK_SQUARE);
+    private HBox createFormsContainer() {
+        final HBox formsBox = new HBox();
+        formsBox.getStyleClass().add("forms-container");
 
-        var square = new StackPane();
-        square.getChildren().add(rect);
+        final VBox registrationForm = createRegistrationForm();
+        final VBox loginForm = createLoginForm();
+
+        formsBox.getChildren().addAll(registrationForm, loginForm);
+        return formsBox;
+    }
+
+    private Button createGuestLoginButton() {
+        guestLoginButton = new Button("Guest Login");
+        guestLoginButton.getStyleClass().add("guest-login-button");
+
+        return guestLoginButton;
+    }
+
+    private VBox createRegistrationForm() {
+        final VBox registrationForm = new VBox();
+        registrationForm.getStyleClass().add("registration-form");
+
+        final Label title = new Label("Registration");
+        title.getStyleClass().add("label-title");
+
+        final TextField usernameField = new TextField();
+        usernameField.setPromptText("Username");
+        username.bind(usernameField.textProperty());
+
+        final PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        password.bind(passwordField.textProperty());
+
+        final TextField emailField = new TextField();
+        emailField.setPromptText("Email");
+        email.bind(emailField.textProperty());
+
+        registerButton = new Button("Register");
+
+        registrationForm.getChildren().addAll(title, usernameField, passwordField, emailField, registerButton);
+        return registrationForm;
+    }
+
+    private VBox createLoginForm() {
+        final VBox loginForm = new VBox();
+        loginForm.getStyleClass().add("login-form");
+
+        final Label title = new Label("Login");
+        title.getStyleClass().add("label-title");
+
+        final TextField usernameField = new TextField();
+        usernameField.setPromptText("Username");
+        username.bind(usernameField.textProperty());
+
+        final PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        password.bind(passwordField.textProperty());
+
+        loginButton = new Button("Login");
+
+        loginForm.getChildren().addAll(title, usernameField, passwordField, loginButton);
+        return loginForm;
+    }
+
+    private StackPane createSquare(int row, int col) {
+        final Rectangle tile = new Rectangle(TILE_SIZE, TILE_SIZE);
+        tile.setFill((row + col) % 2 == 0 ? LIGHT_SQUARE : DARK_SQUARE);
+
+        final StackPane square = new StackPane(tile);
         square.setUserData(new Position(row, col));
 
-        // Only need click handler for simple click-to-move
-        square.setOnMouseClicked(this::onSquareClicked);
+        square.setOnMouseClicked(mouseClickHandlers::onSquareClicked);
 
         return square;
     }
 
     private void addPieceToSquare(StackPane square, Piece piece) {
-        var image = pieceImages.get(piece);
+        final Image image = pieceImages.get(piece);
         if (image == null) return;
 
-        var view = new ImageView(image);
+        final ImageView view = new ImageView(image);
         view.setSmooth(true);
         view.setFitWidth(TILE_SIZE * 0.5);
         view.setFitHeight(TILE_SIZE * 0.5);
@@ -104,22 +182,22 @@ public class ClientView {
         square.getChildren().removeIf(node -> node instanceof ImageView);
     }
 
-    private void updateBoard() {
-        // Add null check to prevent NPE
-        if (clientController == null) {
-            System.out.println("ClientController not set yet, skipping board update");
-            return;
-        }
+    public GridPane createBoard() {
+        loadPieceImages();
+        board = setupBoard();
+        board.getStyleClass().add("grid-pane");
 
+        return board;
+    }
+
+    public void updateBoard(final GameState gameState) {
         for (Node node : board.getChildren()) {
             if (node instanceof StackPane square) {
-                Position pos = (Position) square.getUserData();
+                final Position pos = (Position) square.getUserData();
 
-                // Clear any existing piece from this square
                 removePieceFromSquare(square);
 
-                // Add the current piece if one exists at this position
-                Piece piece = clientController.getGameState().getPieceAt(pos);
+                final Piece piece = gameState.getPieceAt(pos);
                 if (piece != null) {
                     addPieceToSquare(square, piece);
                 }
@@ -127,111 +205,27 @@ public class ClientView {
         }
     }
 
-    private StackPane getSquare(Position position) {
-        for (Node node : board.getChildren()) {
-            if (node instanceof StackPane square) {
-                Position pos = (Position) square.getUserData();
-                if (pos.equals(position)) {
-                    return square;
-                }
-            }
-        }
-        return null;
+    public void setMouseClickHandlers(final MouseClickHandlers handlers) {
+        this.mouseClickHandlers = handlers;
+
+        registerButton.setOnMouseClicked(handlers::onRegisterClicked);
+        loginButton.setOnMouseClicked(handlers::onLoginClicked);
+        guestLoginButton.setOnMouseClicked(handlers::onGuestClicked);
     }
 
-    private void onSquareClicked(MouseEvent event) {
-        // Add null check to prevent NPE during clicks
-        if (clientController == null) {
-            System.out.println("ClientController not set yet, ignoring click");
-            return;
-        }
-
-        Node source = (Node) event.getSource();
-        if (!(source instanceof StackPane square)) return;
-
-        Position clickedPosition = (Position) square.getUserData();
-
-        // If no piece is currently selected
-        if (selectedPosition == null) {
-            // Try to select a piece
-            if (clientController.canSelectPiece(clickedPosition)) {
-                selectPiece(clickedPosition);
-            }
-        } else {
-            // A piece is already selected
-            if (clickedPosition.equals(selectedPosition)) {
-                // Clicked the same square - deselect
-                deselectPiece();
-            } else if (clientController.canSelectPiece(clickedPosition)) {
-                // Clicked a different piece of the same color - select it instead
-                deselectPiece();
-                selectPiece(clickedPosition);
-            } else {
-                // Try to move to the clicked square
-                Move move = new Move(selectedPosition, clickedPosition);
-                if (clientController.makeMove(move)) {
-                    // Move successful
-                    updateBoard();
-                    deselectPiece();
-                    System.out.println("Move made: " + selectedPosition + " -> " + clickedPosition);
-                } else {
-                    // Invalid move - could add visual feedback here
-                    System.out.println("Invalid move: " + selectedPosition + " -> " + clickedPosition);
-                }
-            }
-        }
+    public GridPane getBoard() {
+        return board;
     }
 
-    private void selectPiece(Position position) {
-        // Add null check
-        if (clientController == null) return;
-
-        selectedPosition = position;
-
-        // Highlight selected square
-        StackPane selectedSquare = getSquare(position);
-        if (selectedSquare != null) {
-            selectedSquare.getStyleClass().add("highlight-pressed");
-        }
-
-        // Show possible moves
-        List<Position> validMoves = clientController.getValidMoves(position);
-        for (Position move : validMoves) {
-            StackPane target = getSquare(move);
-            if (target != null) {
-                target.getStyleClass().add("highlight-moves");
-                highlightedSquares.add(target);
-            }
-        }
-
-        System.out.println("Selected piece at: " + position + " with " + validMoves.size() + " valid moves");
+    public StringProperty emailProperty() {
+        return email;
     }
 
-    private void deselectPiece() {
-        // Clear highlights
-        if (selectedPosition != null) {
-            StackPane selectedSquare = getSquare(selectedPosition);
-            if (selectedSquare != null) {
-                selectedSquare.getStyleClass().remove("highlight-pressed");
-            }
-        }
-
-        highlightedSquares.forEach(square -> square.getStyleClass().remove("highlight-moves"));
-        highlightedSquares.clear();
-
-        selectedPosition = null;
-        System.out.println("Piece deselected");
+    public StringProperty usernameProperty() {
+        return username;
     }
 
-    public void setClientController(ClientController clientController) {
-        this.clientController = clientController;
-
-        // Now that clientController is set, update the board
-        updateBoard();
-
-        // Set up the callback for game state changes
-        if (clientController != null) {
-            clientController.setOnGameStateChanged(this::updateBoard);
-        }
+    public StringProperty passwordProperty() {
+        return password;
     }
 }

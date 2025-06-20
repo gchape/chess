@@ -25,11 +25,16 @@ import java.util.concurrent.Executors;
 
 public class Server implements Closeable {
     public static final Charset CHARSET = StandardCharsets.UTF_8;
-    private final IntegerProperty connectedClients;
+
+    private final StringBuilder messageLog;
+
+    private final IntegerProperty clientCount;
     private final StringProperty serverStatus;
-    private final StringBuilder messageHistory;
+    private final StringProperty respMessage;
+
     private final ExecutorService executorService;
     private final ConcurrentHashMap<SocketChannel, ClientMode> connections;
+
     private Selector clientSelector;
     private Selector acceptSelector;
     private ServerSocketChannel server;
@@ -39,16 +44,17 @@ public class Server implements Closeable {
     volatile private boolean running = true;
 
     public Server() {
-        this.connections = new ConcurrentHashMap<>();
-        this.messageHistory = new StringBuilder(); // Initialize message history
-        this.executorService = Executors.newFixedThreadPool(2);
+        messageLog = new StringBuilder();
+        connections = new ConcurrentHashMap<>();
+        executorService = Executors.newFixedThreadPool(2);
 
-        this.serverStatus = new SimpleStringProperty();
-        this.connectedClients = new SimpleIntegerProperty(0);
+        serverStatus = new SimpleStringProperty("");
+        clientCount = new SimpleIntegerProperty(0);
+        respMessage = new SimpleStringProperty("");
     }
 
-    public IntegerProperty connectedClientsProperty() {
-        return connectedClients;
+    public IntegerProperty clientCountProperty() {
+        return clientCount;
     }
 
     public StringProperty serverStatusProperty() {
@@ -168,12 +174,12 @@ public class Server implements Closeable {
         var message = CHARSET.decode(buffer).toString().trim();
 
         if (!message.isEmpty()) {
-            synchronized (messageHistory) {
-                messageHistory.append(message).append("\n");
+            synchronized (messageLog) {
+                messageLog.append(message).append("\n");
             }
 
             updateState("Received={ %s } from client.".formatted(message), 0);
-            System.out.println("Server received: " + message);
+            respMessage.set("Server received: " + message);
 
             broadcastMessage(message, clientChannel);
         }
@@ -190,9 +196,11 @@ public class Server implements Closeable {
                     try {
                         broadcastBuffer.rewind();
                         int bytesWritten = client.write(broadcastBuffer);
-                        System.out.println("Broadcasted " + bytesWritten + " bytes to client: " + message);
+
+                        respMessage.set("Broadcasted " + bytesWritten + " bytes to client: " + message);
                     } catch (IOException e) {
-                        System.err.println("Failed to broadcast to client: " + e.getMessage());
+                        respMessage.set("Failed to broadcast to client: " + e.getMessage());
+
                         var key = client.keyFor(clientSelector);
                         if (key != null) {
                             closeClient(client, key);
@@ -224,23 +232,23 @@ public class Server implements Closeable {
 
         connections.put(clientChannel, clientMode);
 
-        // Send the client mode first
-        ByteBuffer modeBuffer = CHARSET.encode(modeMessage);
+        var modeBuffer = CHARSET.encode(modeMessage);
         while (modeBuffer.hasRemaining()) {
             clientChannel.write(modeBuffer);
         }
 
-        System.out.println("Sent to client: " + modeMessage.trim());
+        respMessage.set("Sent to client: " + modeMessage.trim());
 
-        // Send message history if any exists
-        synchronized (messageHistory) {
-            if (!messageHistory.isEmpty()) {
-                String history = messageHistory.toString();
-                ByteBuffer historyBuffer = CHARSET.encode(history);
+        synchronized (messageLog) {
+            if (!messageLog.isEmpty()) {
+                var history = messageLog.toString();
+                var historyBuffer = CHARSET.encode(history);
+
                 while (historyBuffer.hasRemaining()) {
                     clientChannel.write(historyBuffer);
                 }
-                System.out.println("Sent message history to new client: " + history.replace("\n", " | "));
+
+                respMessage.set("Sent message history to new client: " + history.replace("\n", " | "));
             }
         }
     }
@@ -255,22 +263,9 @@ public class Server implements Closeable {
         updateState("Client disconnected at={ %s }.".formatted(LocalTime.now()), -1);
 
         if (mode == ClientMode.PLAYER) {
-            // Reset player flags when a player disconnects
-            if (player1 && player2) {
-                // If both were connected, we need to figure out which one disconnected
-                // For simplicity, let's reset both and let reconnecting clients get reassigned
-                player1 = false;
-                player2 = false;
-            } else if (player1) {
-                player1 = false;
-            } else if (player2) {
-                player2 = false;
-            }
-
             updateState("Player disconnected - game session affected at={ %s }".formatted(LocalTime.now()), 0);
 
-            // Optionally disconnect all clients to restart the game
-            // disconnectClients();
+            disconnectClients();
         }
     }
 
@@ -278,8 +273,8 @@ public class Server implements Closeable {
         serverStatus.set(serverUpdate);
 
         switch (payload) {
-            case 1 -> connectedClients.set(connectedClients.get() + 1);
-            case -1 -> connectedClients.set(connectedClients.get() - 1);
+            case 1 -> clientCount.set(clientCount.get() + 1);
+            case -1 -> clientCount.set(clientCount.get() - 1);
             default -> {
             }
         }
@@ -313,14 +308,17 @@ public class Server implements Closeable {
                 .forEach(socketChannel -> {
                     try {
                         socketChannel.close();
-                    } catch (IOException e) {
-                        // Ignore errors during shutdown
+                    } catch (IOException ignored) {
                     }
                 });
 
         connections.clear();
-        connectedClients.set(0);
+        clientCount.set(0);
         player1 = false;
         player2 = false;
+    }
+
+    public StringProperty respMessageProperty() {
+        return respMessage;
     }
 }

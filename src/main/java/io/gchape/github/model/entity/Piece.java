@@ -9,12 +9,12 @@ public enum Piece {
     public final char color;
     private final String code;
 
-    Piece(String code, char color) {
+    Piece(final String code, final char color) {
         this.code = code;
         this.color = color;
     }
 
-    public static Piece fromCode(String code) {
+    public static Piece fromCode(final String code) {
         for (Piece piece : values()) {
             if (piece.code.equals(code)) {
                 return piece;

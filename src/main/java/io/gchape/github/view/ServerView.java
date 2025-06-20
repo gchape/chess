@@ -5,12 +5,9 @@ import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.PasswordField;
-import javafx.scene.control.TextField;
+import javafx.geometry.Insets;
+import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
@@ -19,94 +16,110 @@ public enum ServerView {
 
     private final BorderPane root;
     private final Label serverStatusLabel;
-    private final Label connectedClientsLabel;
+    private final Label clientCountLabel;
+    private final TextArea logTextArea;
 
+    private final StringProperty username;
+    private final StringProperty password;
+    private final StringProperty respMessage;
     private final StringProperty serverStatus;
-    private final IntegerProperty connectedClients;
+    private final IntegerProperty clientCount;
+
+    private final TextField usernameInput;
+    private final PasswordField passwordInput;
+    private final Button showDatabaseButton;
 
     ServerView() {
         root = new BorderPane();
-        serverStatus = new SimpleStringProperty();
-        connectedClients = new SimpleIntegerProperty();
+
+        username = new SimpleStringProperty("");
+        password = new SimpleStringProperty("");
+
+        serverStatus = new SimpleStringProperty("");
+        respMessage = new SimpleStringProperty("");
+        clientCount = new SimpleIntegerProperty(0);
 
         serverStatusLabel = new Label();
-        connectedClientsLabel = new Label();
+        clientCountLabel = new Label();
+        logTextArea = new TextArea();
 
-        addControls();
-        addListeners();
+        usernameInput = new TextField();
+        passwordInput = new PasswordField();
+        showDatabaseButton = new Button("Show Database");
+
+        initializeLayout();
+        bindProperties();
     }
 
-    private void addListeners() {
-        serverStatus.subscribe(v -> Platform.runLater(() -> serverStatusLabel.setText(v)));
+    private void bindProperties() {
+        serverStatus.addListener((obs, old, current) ->
+                Platform.runLater(() -> serverStatusLabel.setText(current)));
 
-        connectedClients.subscribe(v ->
+        clientCount.addListener((obs, old, current) ->
                 Platform.runLater(() ->
-                        connectedClientsLabel.setText("Connected clients={ %d }.".formatted(v.intValue()))));
+                        clientCountLabel.setText("Connected Clients: %d".formatted(current.intValue()))));
+
+        respMessage.addListener((obs, old, current) ->
+                Platform.runLater(() -> logTextArea.appendText(current)));
+
+        username.bind(usernameInput.textProperty());
+        password.bind(passwordInput.textProperty());
     }
 
-    private void addControls() {
-        setupTopStatus();
-        setupForms();
+    private void initializeLayout() {
+        configureTopSection();
+        configureCenterSection();
+        configureRightSection();
     }
 
-    private void setupTopStatus() {
+    private void configureTopSection() {
         VBox statusBox = new VBox();
-        statusBox.getStyleClass().add("status-box");
+        statusBox.getStyleClass().add("status-container");
 
-        statusBox.getChildren().addAll(serverStatusLabel, connectedClientsLabel);
+        serverStatusLabel.getStyleClass().add("label-title");
+        clientCountLabel.getStyleClass().add("label-title");
+
+        statusBox.getChildren().addAll(serverStatusLabel, clientCountLabel);
         root.setTop(statusBox);
     }
 
-    private void setupForms() {
-        HBox formsBox = new HBox();
-        formsBox.getStyleClass().add("forms-box");
+    private void configureCenterSection() {
+        logTextArea.setWrapText(true);
+        logTextArea.setEditable(false);
+        logTextArea.getStyleClass().add("log-area");
 
-        VBox registrationForm = createRegistrationForm();
-        VBox loginForm = createLoginForm();
-
-        formsBox.getChildren().addAll(registrationForm, loginForm);
-        root.setCenter(formsBox);
+        root.setCenter(logTextArea);
+        BorderPane.setMargin(logTextArea, new Insets(0, 8, 8, 8));
     }
 
-    private VBox createRegistrationForm() {
-        VBox form = new VBox();
-        form.getStyleClass().addAll("registration-form");
+    private void configureRightSection() {
+        VBox authPane = new VBox();
+        authPane.getStyleClass().add("auth-pane");
 
-        Label title = new Label("Registration");
-        title.getStyleClass().add("label-title");
+        Label usernameLabel = new Label("Username:");
+        Label passwordLabel = new Label("Password:");
 
-        TextField username = new TextField();
-        username.setPromptText("Username");
+        usernameInput.setPromptText("e.g. admin");
+        usernameInput.getStyleClass().add("text-field");
 
-        PasswordField password = new PasswordField();
-        password.setPromptText("Password");
+        passwordInput.setPromptText("enter password");
+        passwordInput.getStyleClass().add("password-field");
 
-        TextField email = new TextField();
-        email.setPromptText("Email");
+        usernameLabel.getStyleClass().add("form-label");
+        passwordLabel.getStyleClass().add("form-label");
 
-        Button registerButton = new Button("Register");
+        showDatabaseButton.setMaxWidth(Double.MAX_VALUE);
 
-        form.getChildren().addAll(title, username, password, email, registerButton);
-        return form;
-    }
+        authPane.getChildren().addAll(
+                usernameLabel,
+                usernameInput,
+                passwordLabel,
+                passwordInput,
+                showDatabaseButton
+        );
 
-    private VBox createLoginForm() {
-        VBox form = new VBox();
-        form.getStyleClass().addAll("login-form");
-
-        Label title = new Label("Login");
-        title.getStyleClass().add("label-title");
-
-        TextField username = new TextField();
-        username.setPromptText("Username");
-
-        PasswordField password = new PasswordField();
-        password.setPromptText("Password");
-
-        Button loginButton = new Button("Login");
-
-        form.getChildren().addAll(title, username, password, loginButton);
-        return form;
+        root.setRight(authPane);
+        BorderPane.setMargin(authPane, new Insets(0, 8, 8, 8));
     }
 
     public Region view() {
@@ -117,7 +130,19 @@ public enum ServerView {
         return serverStatus;
     }
 
-    public IntegerProperty connectedClientsProperty() {
-        return connectedClients;
+    public StringProperty respMessageProperty() {
+        return respMessage;
+    }
+
+    public IntegerProperty clientCountProperty() {
+        return clientCount;
+    }
+
+    public StringProperty usernameProperty() {
+        return username;
+    }
+
+    public StringProperty passwordProperty() {
+        return password;
     }
 }

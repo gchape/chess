@@ -6,19 +6,39 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
 public class ServerModel {
+    private final StringProperty respMessage;
     private final StringProperty serverStatus;
-    private final IntegerProperty connectedClients;
+    private final IntegerProperty clientCount;
+
+    private final StringProperty username;
+    private final StringProperty password;
 
     public ServerModel() {
-        this.serverStatus = new SimpleStringProperty();
-        this.connectedClients = new SimpleIntegerProperty();
+        username = new SimpleStringProperty("");
+        password = new SimpleStringProperty("");
+
+        clientCount = new SimpleIntegerProperty(0);
+        respMessage = new SimpleStringProperty("");
+        serverStatus = new SimpleStringProperty("");
+    }
+
+    public StringProperty respMessageProperty() {
+        return respMessage;
     }
 
     public StringProperty serverStatusProperty() {
         return serverStatus;
     }
 
-    public IntegerProperty connectedClientsProperty() {
-        return connectedClients;
+    public IntegerProperty clientCountProperty() {
+        return clientCount;
+    }
+
+    public StringProperty usernameProperty() {
+        return username;
+    }
+
+    public StringProperty passwordProperty() {
+        return password;
     }
 }

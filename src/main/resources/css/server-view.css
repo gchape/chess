@@ -1,31 +1,70 @@
-/* server-view.css */
-
 .label-title {
     -fx-font-size: 16px;
     -fx-font-weight: bold;
+    -fx-padding: 0 0 8 0;
 }
 
-.status-box {
-    -fx-padding: 5 0 5 0;
-    -fx-spacing: 5;
-    -fx-alignment: center;
-}
-
-.forms-box {
-    -fx-padding: 20;
-    -fx-spacing: 40;
-    -fx-alignment: center;
-}
-
-.registration-form,
-.login-form {
+.status-container {
+    -fx-padding: 16;
     -fx-spacing: 10;
+    -fx-alignment: center;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.1), 3, 0, 0, 1);
+    -fx-min-height: 80px;
 }
 
-.registration-form {
+.log-area {
+    -fx-font-family: "Consolas", "Monaco", monospace;
+    -fx-font-size: 13px;
+    -fx-padding: 12;
+    -fx-pref-height: 400px;
+    -fx-wrap-text: true;
+
+    -fx-border-color: #b8860b;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+.log-area .content {
+    -fx-caret-color: #e74c3c;
+}
+
+.auth-pane {
+    -fx-padding: 20;
+    -fx-spacing: 16;
     -fx-alignment: center-left;
+    -fx-min-width: 280px;
+
+    -fx-border-width: 1;
+    -fx-border-color: #006400;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
 }
 
-.login-form {
+.form-label {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 4 0;
+    -fx-min-width: 75px;
     -fx-alignment: center-right;
+}
+
+.text-field,
+.password-field {
+    -fx-pref-width: 180px;
+    -fx-padding: 6 8;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+.button {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 10 16;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
 }
