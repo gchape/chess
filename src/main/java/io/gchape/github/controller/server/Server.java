@@ -179,7 +179,7 @@ public class Server implements Closeable {
             }
 
             updateState("Received={ %s } from client.".formatted(message), 0);
-            respMessage.set("Server received: " + message);
+            respMessage.set("Server received: %s%n".formatted(message));
 
             broadcastMessage(message, clientChannel);
         }
@@ -197,9 +197,9 @@ public class Server implements Closeable {
                         broadcastBuffer.rewind();
                         int bytesWritten = client.write(broadcastBuffer);
 
-                        respMessage.set("Broadcasted " + bytesWritten + " bytes to client: " + message);
+                        respMessage.set("Broadcasted %d bytes to client: %s%n".formatted(bytesWritten, message));
                     } catch (IOException e) {
-                        respMessage.set("Failed to broadcast to client: " + e.getMessage());
+                        respMessage.set("Failed to broadcast to client: %s%n".formatted(e.getMessage()));
 
                         var key = client.keyFor(clientSelector);
                         if (key != null) {
@@ -237,7 +237,7 @@ public class Server implements Closeable {
             clientChannel.write(modeBuffer);
         }
 
-        respMessage.set("Sent to client: " + modeMessage.trim());
+        respMessage.set("Sent to client: %s%n".formatted(modeMessage.trim()));
 
         synchronized (messageLog) {
             if (!messageLog.isEmpty()) {
@@ -248,7 +248,7 @@ public class Server implements Closeable {
                     clientChannel.write(historyBuffer);
                 }
 
-                respMessage.set("Sent message history to new client: " + history.replace("\n", " | "));
+                respMessage.set("Sent message history to new client: %s%n".formatted(history.replace("\n", " | ")));
             }
         }
     }
