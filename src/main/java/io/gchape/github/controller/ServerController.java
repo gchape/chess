@@ -1,6 +1,6 @@
 package io.gchape.github.controller;
 
-import io.gchape.github.controller.server.Server;
+import io.gchape.github.http.server.Server;
 import io.gchape.github.model.ServerModel;
 import io.gchape.github.view.ServerView;
 

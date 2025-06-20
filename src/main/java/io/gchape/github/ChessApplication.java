@@ -10,7 +10,11 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.shell.command.annotation.CommandScan;
 
 @SpringBootApplication
-@ComponentScan("io.gchape.github.cli.config")
+@ComponentScan(basePackages = {
+        "io.gchape.github.cli.config",
+        "io.gchape.github.controller",
+        "io.gchape.github.model.repository"
+})
 @CommandScan(basePackageClasses = Commands.class)
 public class ChessApplication extends SpringApplication {
 

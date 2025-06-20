@@ -1,6 +1,6 @@
 package io.gchape.github.controller;
 
-import io.gchape.github.controller.client.Client;
+import io.gchape.github.http.client.Client;
 import io.gchape.github.controller.handlers.MouseClickHandlers;
 import io.gchape.github.model.ClientModel;
 import io.gchape.github.model.GameState;
@@ -22,9 +22,16 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 public class ClientController implements MouseClickHandlers {
+    private static final int SERVER_PORT = 8080;
+    private static final String SERVER_HOST = "localhost";
+
+    private static final int POLLING_INTERVAL_MS = 100;
+
+    private static final int GAME_WINDOW_WIDTH = 800;
+    private static final int GAME_WINDOW_HEIGHT = 800;
+
     private final ClientView clientView;
     private final ClientModel clientModel;
-
     private final GameState gameState;
     private final MoveGenerator moveGenerator;
     private final Timer pollingTimer;
@@ -42,6 +49,10 @@ public class ClientController implements MouseClickHandlers {
         this.moveGenerator = new MoveGenerator();
         this.pollingTimer = new Timer(true);
 
+        initializeController();
+    }
+
+    private void initializeController() {
         setupBindings();
         setOnGameStateChanged(() -> clientView.updateBoard(gameState));
     }
@@ -58,68 +69,27 @@ public class ClientController implements MouseClickHandlers {
                 closeClient();
             }
 
-            client = new Client("localhost", 8080);
-            startPollingMessages();
+            establishConnection();
 
-            System.out.println("Connected to server at " + "localhost" + ":" + 8080);
+            System.out.println("Connected to server at " + SERVER_HOST + ":" + SERVER_PORT);
         } catch (Exception e) {
             System.err.println("Failed to connect to server: " + e.getMessage());
         }
     }
 
-    private void switchToGameView(MouseEvent e) {
-        Platform.runLater(() -> {
-            Scene scene = ((Node) e.getSource()).getScene();
-            Stage stage = (Stage) scene.getWindow();
+    private void establishConnection() {
+        client = new Client(SERVER_HOST, SERVER_PORT);
 
-            scene.setRoot(clientView.createBoard());
-            stage.setWidth(800);
-            stage.setHeight(800);
-        });
-    }
-
-    private boolean authenticateUser(String username, String password, String email) {
-        // TODO: Implement actual authentication logic
-
-        if (username == null || username.trim().isEmpty()) {
-            System.err.println("Username cannot be empty");
-            return false;
-        }
-
-        if (password == null || password.trim().isEmpty()) {
-            System.err.println("Password cannot be empty");
-            return false;
-        }
-
-        System.out.println("Authenticating user: " + username);
-        return true;
-    }
-
-    private boolean registerUser(String username, String password, String email) {
-        // TODO: Implement actual registration logic
-
-        if (username == null || username.trim().isEmpty()) {
-            System.err.println("Username cannot be empty");
-            return false;
-        }
-
-        if (password == null || password.trim().isEmpty()) {
-            System.err.println("Password cannot be empty");
-            return false;
-        }
-
-        if (email == null || email.trim().isEmpty()) {
-            System.err.println("Email cannot be empty");
-            return false;
-        }
-
-        // Placeholder registration - always returns true for now
-        System.out.println("Registering user: " + username + " with email: " + email);
-        return true;
+        startPollingMessages();
     }
 
     public void closeClient() {
         stopPolling();
+
+        closeClientConnection();
+    }
+
+    private void closeClientConnection() {
         try {
             if (client != null) {
                 client.close();
@@ -128,6 +98,30 @@ public class ClientController implements MouseClickHandlers {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void switchToGameView(MouseEvent e) {
+        Platform.runLater(() -> {
+            Stage stage = getStageFromEvent(e);
+            Scene scene = stage.getScene();
+
+            updateSceneForGame(scene);
+            configureGameWindow(stage);
+        });
+    }
+
+    private Stage getStageFromEvent(MouseEvent e) {
+        Scene scene = ((Node) e.getSource()).getScene();
+        return (Stage) scene.getWindow();
+    }
+
+    private void updateSceneForGame(Scene scene) {
+        scene.setRoot(clientView.createBoard());
+    }
+
+    private void configureGameWindow(Stage stage) {
+        stage.setWidth(GAME_WINDOW_WIDTH);
+        stage.setHeight(GAME_WINDOW_HEIGHT);
     }
 
     private void setOnGameStateChanged(Runnable callback) {
@@ -140,9 +134,17 @@ public class ClientController implements MouseClickHandlers {
             return false;
         }
 
+        return isPieceOwnedByPlayer(position);
+    }
+
+    private boolean isPieceOwnedByPlayer(Position position) {
         Piece piece = gameState.getPieceAt(position);
         if (piece == null) return false;
 
+        return isPlayersPiece(piece);
+    }
+
+    private boolean isPlayersPiece(Piece piece) {
         return (gameState.getColor() && piece.color == 'w') ||
                 (!gameState.getColor() && piece.color == 'b');
     }
@@ -157,6 +159,18 @@ public class ClientController implements MouseClickHandlers {
     }
 
     private boolean makeMove(Move move) {
+        if (!canMakeMove(move)) {
+            return false;
+        }
+
+        executeMoveOnBoard(move);
+        sendMoveToServer(move);
+        updateGameState();
+
+        return true;
+    }
+
+    private boolean canMakeMove(Move move) {
         if (!isPlayerTurn) {
             System.out.println("Not your turn!");
             return false;
@@ -166,166 +180,228 @@ public class ClientController implements MouseClickHandlers {
             return false;
         }
 
-        Piece piece = gameState.getPieceAt(move.from());
-        if (piece == null) {
-            return false;
-        }
+        return gameState.getPieceAt(move.from()) != null;
+    }
 
+    private void executeMoveOnBoard(Move move) {
+        Piece piece = gameState.getPieceAt(move.from());
         gameState.setPieceAt(move.to(), piece);
         gameState.setPieceAt(move.from(), null);
+    }
 
+    private void sendMoveToServer(Move move) {
         if (client != null) {
-            String moveMessage = String.format("%s#(%d,%d)->(%d,%d)",
-                    piece,
-                    move.from().row(), move.from().col(),
-                    move.to().row(), move.to().col());
+            String moveMessage = formatMoveMessage(move);
             client.send(moveMessage);
         }
+    }
 
+    private String formatMoveMessage(Move move) {
+        Piece piece = gameState.getPieceAt(move.to());
+        return String.format("%s#(%d,%d)->(%d,%d)",
+                piece,
+                move.from().row(), move.from().col(),
+                move.to().row(), move.to().col());
+    }
+
+    private void updateGameState() {
         isPlayerTurn = false;
+        notifyGameStateChanged();
+    }
 
+    private void notifyGameStateChanged() {
         if (onGameStateChanged != null) {
             Platform.runLater(onGameStateChanged);
         }
-
-        return true;
     }
 
     private void startPollingMessages() {
-        pollingTimer.scheduleAtFixedRate(new TimerTask() {
+        pollingTimer.scheduleAtFixedRate(createPollingTask(), 0, POLLING_INTERVAL_MS);
+    }
+
+    private TimerTask createPollingTask() {
+        return new TimerTask() {
             @Override
             public void run() {
-                if (client == null) return;
-
-                String message;
-                while ((message = client.getIncoming().poll()) != null) {
-                    handleIncomingMessage(message);
-                }
+                processIncomingMessages();
             }
-        }, 0, 100); // Poll more frequently for better responsiveness
+        };
+    }
+
+    private void processIncomingMessages() {
+        if (client == null) return;
+
+        String message;
+        while ((message = client.getIncoming().poll()) != null) {
+            handleIncomingMessage(message);
+        }
     }
 
     private void handleIncomingMessage(String message) {
         try {
             System.out.println("Processing message: " + message);
 
-            if (!isInitialized && (message.contains("PLAYER:") || message.contains("SPECTATOR:"))) {
-                handleClientModeMessage(message);
-                isInitialized = true;
+            if (isInitializationMessage(message)) {
+                handleInitializationMessage(message);
                 return;
             }
 
-            if (message.contains("#") && message.contains("->")) {
+            if (isMoveMessage(message)) {
                 handleMoveMessage(message);
             }
         } catch (Exception e) {
-            System.err.println("Failed to handle incoming message: " + message + " - " + e.getMessage());
+            logMessageHandlingError(message, e);
         }
+    }
+
+    private boolean isInitializationMessage(String message) {
+        return !isInitialized &&
+                (message.contains("PLAYER:") ||
+                        message.contains("SPECTATOR:"));
+    }
+
+    private void handleInitializationMessage(String message) {
+        handleClientModeMessage(message);
+        isInitialized = true;
+    }
+
+    private boolean isMoveMessage(String message) {
+        return message.contains("#") && message.contains("->");
+    }
+
+    private void logMessageHandlingError(String message, Exception e) {
+        System.err.println("Failed to handle incoming message: " + message + " - " + e.getMessage());
     }
 
     private void handleClientModeMessage(String message) {
         try {
-            String[] parts = message.split(":");
+            String[] parts = parseClientModeMessage(message);
             if (parts.length >= 2) {
-                String mode = parts[0].trim();
-                String color = parts[1].trim();
-
-                if ("PLAYER".equals(mode)) {
-                    if ("WHITE".equals(color)) {
-                        gameState.setColor(true);
-                        isPlayerTurn = true;
-
-                        System.out.println("You are playing as WHITE - Your turn!");
-                    } else if ("BLACK".equals(color)) {
-                        gameState.setColor(false);
-                        isPlayerTurn = false;
-
-                        System.out.println("You are playing as BLACK - Wait for white's move");
-                    }
-                } else if ("SPECTATOR".equals(mode)) {
-                    isPlayerTurn = false;
-
-                    System.out.println("You are spectating");
-                }
-
-                if (onGameStateChanged != null) {
-                    Platform.runLater(onGameStateChanged);
-                }
+                processClientMode(parts[0].trim(), parts[1].trim());
             }
         } catch (Exception e) {
             System.err.println("Failed to handle client mode message: " + message);
         }
     }
 
+    private String[] parseClientModeMessage(String message) {
+        return message.split(":");
+    }
+
+    private void processClientMode(String mode, String color) {
+        if ("PLAYER".equals(mode)) {
+            handlePlayerMode(color);
+        } else if ("SPECTATOR".equals(mode)) {
+            handleSpectatorMode();
+        }
+
+        notifyGameStateChanged();
+    }
+
+    private void handlePlayerMode(String color) {
+        if ("WHITE".equals(color)) {
+            setupWhitePlayer();
+        } else if ("BLACK".equals(color)) {
+            setupBlackPlayer();
+        }
+    }
+
+    private void setupWhitePlayer() {
+        gameState.setColor(true);
+        isPlayerTurn = true;
+
+        System.out.println("You are playing as WHITE - Your turn!");
+    }
+
+    private void setupBlackPlayer() {
+        gameState.setColor(false);
+        isPlayerTurn = false;
+
+        System.out.println("You are playing as BLACK - Wait for white's move");
+    }
+
+    private void handleSpectatorMode() {
+        isPlayerTurn = false;
+
+        System.out.println("You are spectating");
+    }
+
     private void handleMoveMessage(String moveStr) {
         try {
             System.out.println("Handling move message: " + moveStr);
 
-            String[] parts = moveStr.split("#");
-            if (parts.length != 2) {
-                System.err.println("Invalid move format (missing #): " + moveStr);
-                return;
-            }
+            Move move = parseMoveFromMessage(moveStr);
+            String pieceCode = extractPieceCodeFromMessage(moveStr);
 
-            String pieceCode = parts[0].trim();
-            String movePart = parts[1].trim();
-
-            String[] moveParts = movePart.split("->");
-            if (moveParts.length != 2) {
-                System.err.println("Invalid move format (missing ->): " + moveStr);
-                return;
-            }
-
-            Position from = parsePosition(moveParts[0].trim());
-            Position to = parsePosition(moveParts[1].trim());
-            Move move = new Move(from, to);
-
-            Piece piece = gameState.getPieceAt(move.from());
-            if (piece != null) {
-                gameState.setPieceAt(move.to(), piece);
-                gameState.setPieceAt(move.from(), null);
-
-                isPlayerTurn = true;
-
-                System.out.println("Received opponent's move: " + pieceCode + " from " + move.from() + " to " + move.to());
-                System.out.println("It's now your turn!");
-
-                if (onGameStateChanged != null) {
-                    Platform.runLater(onGameStateChanged);
-                }
-            } else {
-                System.err.println("No piece found at position: " + move.from() + " for move: " + moveStr);
-
-                try {
-                    Piece expectedPiece = Piece.fromCode(pieceCode);
-                    gameState.setPieceAt(move.to(), expectedPiece);
-                    isPlayerTurn = true;
-
-                    System.out.println("Created missing piece: " + expectedPiece + " at " + move.to());
-
-                    if (onGameStateChanged != null) {
-                        Platform.runLater(onGameStateChanged);
-                    }
-                } catch (IllegalArgumentException e) {
-                    System.err.println("Could not create piece from code: " + pieceCode);
-                }
-            }
+            processOpponentMove(move, pieceCode, moveStr);
         } catch (Exception e) {
             System.err.println("Failed to parse move: " + moveStr + " - " + e.getMessage());
         }
     }
 
+    private Move parseMoveFromMessage(String moveStr) {
+        String[] parts = moveStr.split("#");
+        validateMoveMessageFormat(parts, moveStr, "#");
+
+        String movePart = parts[1].trim();
+        String[] moveParts = movePart.split("->");
+        validateMoveMessageFormat(moveParts, moveStr, "->");
+
+        Position from = parsePosition(moveParts[0].trim());
+        Position to = parsePosition(moveParts[1].trim());
+
+        return new Move(from, to);
+    }
+
+    private String extractPieceCodeFromMessage(String moveStr) {
+        return moveStr.split("#")[0].trim();
+    }
+
+    private void validateMoveMessageFormat(String[] parts, String moveStr, String delimiter) {
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("Invalid move format (missing " + delimiter + "): " + moveStr);
+        }
+    }
+
+    private void processOpponentMove(Move move, String pieceCode, String originalMessage) {
+        Piece piece = gameState.getPieceAt(move.from());
+
+        if (piece != null) {
+            executeOpponentMove(move, pieceCode);
+        }
+    }
+
+    private void executeOpponentMove(Move move, String pieceCode) {
+        Piece piece = gameState.getPieceAt(move.from());
+        gameState.setPieceAt(move.to(), piece);
+        gameState.setPieceAt(move.from(), null);
+
+        isPlayerTurn = true;
+        logOpponentMove(pieceCode, move);
+        notifyGameStateChanged();
+    }
+
+    private void logOpponentMove(String pieceCode, Move move) {
+        System.out.println("Received opponent's move: " + pieceCode + " from " + move.from() + " to " + move.to());
+        System.out.println("It's now your turn!");
+    }
+
     private Position parsePosition(String posStr) {
-        // Parse format: "(row,col)"
         String cleaned = posStr.replaceAll("[\\(\\)]", "");
         String[] coords = cleaned.split(",");
-        if (coords.length != 2) {
-            throw new IllegalArgumentException("Invalid position format: " + posStr);
-        }
+
+        validatePositionFormat(coords, posStr);
 
         int row = Integer.parseInt(coords[0].trim());
         int col = Integer.parseInt(coords[1].trim());
+
         return new Position(row, col);
+    }
+
+    private void validatePositionFormat(String[] coords, String posStr) {
+        if (coords.length != 2) {
+            throw new IllegalArgumentException("Invalid position format: " + posStr);
+        }
     }
 
     private void stopPolling() {
@@ -334,119 +410,161 @@ public class ClientController implements MouseClickHandlers {
 
     @Override
     public void onLoginClicked(MouseEvent e) {
-        String username = clientModel.usernameProperty().get();
-        String password = clientModel.passwordProperty().get();
-        String email = clientModel.emailProperty().get();
 
-        if (authenticateUser(username, password, email)) {
-            System.out.println("Login successful for user: " + username);
-
-            // Connect to server after successful authentication
-            connectToServer();
-
-            // Switch to game view
-            switchToGameView(e);
-        } else {
-            System.err.println("Login failed for user: " + username);
-            // TODO: Show error message to user
-        }
     }
 
     @Override
     public void onGuestClicked(MouseEvent e) {
-        System.out.println("Guest login initiated");
-
-        // Connect to server as guest
         connectToServer();
-
-        // Switch to game view
         switchToGameView(e);
     }
 
     @Override
     public void onRegisterClicked(MouseEvent e) {
-        String username = clientModel.usernameProperty().get();
-        String password = clientModel.passwordProperty().get();
-        String email = clientModel.emailProperty().get();
+    }
 
-        if (registerUser(username, password, email)) {
-            System.out.println("Registration successful for user: " + username);
+    private void handleSuccessfulLogin(String username, MouseEvent e) {
+        System.out.println("Login successful for user: " + username);
 
-            // Connect to server after successful registration
-            connectToServer();
+        connectToServer();
+        switchToGameView(e);
+    }
 
-            // Switch to game view
-            switchToGameView(e);
-        } else {
-            System.err.println("Registration failed for user: " + username);
-            // TODO: Show error message to user
-        }
+    private void handleFailedLogin(String username) {
+        System.err.println("Login failed for user: " + username);
+
+        // TODO: Show error message to user
+    }
+
+    private void handleSuccessfulRegistration(String username, MouseEvent e) {
+        System.out.println("Registration successful for user: " + username);
+
+        // TODO: Show success message to user
     }
 
     @Override
     public void onSquareClicked(MouseEvent event) {
-        Node source = (Node) event.getSource();
-        if (!(source instanceof StackPane square)) return;
+        StackPane square = getSquareFromEvent(event);
+        if (square == null) return;
 
         Position clickedPosition = (Position) square.getUserData();
 
         if (clientView.selectedPosition == null) {
-            if (canSelectPiece(clickedPosition)) {
-                selectPiece(clickedPosition);
-            }
+            handleSquareClickWithoutSelection(clickedPosition);
         } else {
-            if (clickedPosition.equals(clientView.selectedPosition)) {
-                deselectPiece();
-            } else if (canSelectPiece(clickedPosition)) {
-                deselectPiece();
-                selectPiece(clickedPosition);
-            } else {
-                Move move = new Move(clientView.selectedPosition, clickedPosition);
-                if (makeMove(move)) {
-                    clientView.updateBoard(gameState);
-                    deselectPiece();
-
-                    System.out.println("Move made: " + clientView.selectedPosition + " -> " + clickedPosition);
-                } else {
-                    System.out.println("Invalid move: " + clientView.selectedPosition + " -> " + clickedPosition);
-                }
-            }
+            handleSquareClickWithSelection(clickedPosition);
         }
+    }
+
+    private StackPane getSquareFromEvent(MouseEvent event) {
+        Node source = (Node) event.getSource();
+        return (source instanceof StackPane) ? (StackPane) source : null;
+    }
+
+    private void handleSquareClickWithoutSelection(Position clickedPosition) {
+        if (canSelectPiece(clickedPosition)) {
+            selectPiece(clickedPosition);
+        }
+    }
+
+    private void handleSquareClickWithSelection(Position clickedPosition) {
+        if (clickedPosition.equals(clientView.selectedPosition)) {
+            deselectPiece();
+        } else if (canSelectPiece(clickedPosition)) {
+            reselectPiece(clickedPosition);
+        } else {
+            attemptMove(clickedPosition);
+        }
+    }
+
+    private void reselectPiece(Position clickedPosition) {
+        deselectPiece();
+        selectPiece(clickedPosition);
+    }
+
+    private void attemptMove(Position clickedPosition) {
+        Move move = new Move(clientView.selectedPosition, clickedPosition);
+
+        if (makeMove(move)) {
+            handleSuccessfulMove(move);
+        } else {
+            handleFailedMove(move);
+        }
+    }
+
+    private void handleSuccessfulMove(Move move) {
+        clientView.updateBoard(gameState);
+        deselectPiece();
+        System.out.println("Move made: " + move.from() + " -> " + move.to());
+    }
+
+    private void handleFailedMove(Move move) {
+        System.out.println("Invalid move: " + move.from() + " -> " + move.to());
     }
 
     private void selectPiece(Position position) {
         clientView.selectedPosition = position;
 
+        highlightSelectedSquare(position);
+        highlightValidMoves(position);
+
+        logPieceSelection(position);
+    }
+
+    private void highlightSelectedSquare(Position position) {
         StackPane selectedSquare = getSquare(position);
         if (selectedSquare != null) {
             selectedSquare.getStyleClass().add("highlight-pressed");
         }
+    }
 
+    private void highlightValidMoves(Position position) {
         List<Position> validMoves = getValidMoves(position);
+
         for (Position move : validMoves) {
-            StackPane target = getSquare(move);
-            if (target != null) {
-                target.getStyleClass().add("highlight-moves");
-                clientView.highlightedSquares.add(target);
-            }
+            highlightMoveSquare(move);
         }
+    }
+
+    private void highlightMoveSquare(Position move) {
+        StackPane target = getSquare(move);
+        if (target != null) {
+            target.getStyleClass().add("highlight-moves");
+            clientView.highlightedSquares.add(target);
+        }
+    }
+
+    private void logPieceSelection(Position position) {
+        List<Position> validMoves = getValidMoves(position);
 
         System.out.println("Selected piece at: " + position + " with " + validMoves.size() + " valid moves");
     }
 
     private void deselectPiece() {
+        removeSelectedSquareHighlight();
+        clearMoveHighlights();
+        clearSelection();
+
+        System.out.println("Piece deselected");
+    }
+
+    private void removeSelectedSquareHighlight() {
         if (clientView.selectedPosition != null) {
             StackPane selectedSquare = getSquare(clientView.selectedPosition);
             if (selectedSquare != null) {
                 selectedSquare.getStyleClass().remove("highlight-pressed");
             }
         }
+    }
 
-        clientView.highlightedSquares.forEach(square -> square.getStyleClass().remove("highlight-moves"));
+    private void clearMoveHighlights() {
+        clientView.highlightedSquares.forEach(square ->
+                square.getStyleClass().remove("highlight-moves"));
         clientView.highlightedSquares.clear();
+    }
 
+    private void clearSelection() {
         clientView.selectedPosition = null;
-        System.out.println("Piece deselected");
     }
 
     private StackPane getSquare(final Position position) {
