@@ -2,7 +2,6 @@ package io.gchape.github.cli;
 
 import io.gchape.github.controller.ClientController;
 import io.gchape.github.controller.ServerController;
-import io.gchape.github.model.ServerModel;
 import io.gchape.github.view.ClientView;
 import io.gchape.github.view.ServerView;
 import javafx.application.Platform;
@@ -17,15 +16,21 @@ import java.util.Objects;
 @Command
 @Component
 public class UserCommand {
+    private final ServerController serverController;
     private final ClientController clientController;
+
     private final ClientView clientView;
+    private final ServerView serverView;
 
     private Stage stage;
 
     @Autowired
-    public UserCommand(ClientView clientView, ClientController clientController) {
+    public UserCommand(final ServerController serverController, final ClientView clientView,
+                       final ClientController clientController, final ServerView serverView) {
+        this.serverController = serverController;
         this.clientView = clientView;
         this.clientController = clientController;
+        this.serverView = serverView;
     }
 
     @Command(command = "start-server",
@@ -60,8 +65,7 @@ public class UserCommand {
     }
 
     private void runServer() {
-        ServerView serverView = ServerView.INSTANCE;
-        var serverController = new ServerController(serverView, new ServerModel());
+        serverView.setOnClickHandler(serverController);
 
         var scene = new Scene(serverView.view());
         stage.setScene(scene);
@@ -78,7 +82,7 @@ public class UserCommand {
     }
 
     private void runClient() {
-        clientView.setMouseClickHandlers(clientController);
+        clientView.setOnClickHandler(clientController);
 
         var scene = new Scene(clientView.view());
         stage.setScene(scene);

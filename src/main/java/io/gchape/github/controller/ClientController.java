@@ -1,6 +1,6 @@
 package io.gchape.github.controller;
 
-import io.gchape.github.controller.handlers.MouseClickHandlers;
+import io.gchape.github.controller.events.ClientOnClickEvents;
 import io.gchape.github.model.ClientModel;
 import io.gchape.github.model.entity.Move;
 import io.gchape.github.model.entity.Position;
@@ -16,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
-public class ClientController implements MouseClickHandlers {
+public class ClientController implements ClientOnClickEvents {
     private static final Logger logger = LoggerFactory.getLogger(ClientController.class);
 
     private final ClientView clientView;
@@ -251,24 +251,6 @@ public class ClientController implements MouseClickHandlers {
             logger.info("Client controller shutdown completed");
         } catch (Exception e) {
             logger.error("Error during shutdown", e);
-        }
-    }
-
-    public void handleConnectionLost() {
-        try {
-            uiManager.showError("Connection to server lost. Please restart the application.");
-            logger.warn("Connection to server lost");
-        } catch (Exception e) {
-            logger.error("Error handling connection lost", e);
-        }
-    }
-
-    public void handleServerError(String errorMessage) {
-        try {
-            uiManager.showError("Server error: " + (errorMessage != null ? errorMessage : "Unknown error"));
-            logger.error("Server error received: {}", errorMessage);
-        } catch (Exception e) {
-            logger.error("Error handling server error", e);
         }
     }
 }
