@@ -3,10 +3,12 @@ package io.gchape.github.model.service;
 import io.gchape.github.model.GameState;
 import io.gchape.github.model.entity.Piece;
 import io.gchape.github.model.entity.Position;
+import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Service
 public class MoveGenerator {
     private static final int BOARD_SIZE = 8;
 

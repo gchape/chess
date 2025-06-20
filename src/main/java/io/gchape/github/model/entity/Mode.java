@@ -1,5 +1,5 @@
 package io.gchape.github.model.entity;
 
-public enum ClientMode {
+public enum Mode {
     PLAYER, SPECTATOR
 }

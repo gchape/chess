@@ -18,9 +18,11 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 
+@Component
 public class ClientView {
     private static final int TILE_SIZE = 80;
     private static final int BOARD_SIZE = 8;

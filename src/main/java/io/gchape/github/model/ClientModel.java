@@ -2,7 +2,9 @@ package io.gchape.github.model;
 
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import org.springframework.stereotype.Component;
 
+@Component
 public class ClientModel {
     private final StringProperty email;
     private final StringProperty username;

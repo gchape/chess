@@ -2,22 +2,34 @@ package io.gchape.github.cli;
 
 import io.gchape.github.controller.ClientController;
 import io.gchape.github.controller.ServerController;
-import io.gchape.github.model.ClientModel;
 import io.gchape.github.model.ServerModel;
 import io.gchape.github.view.ClientView;
 import io.gchape.github.view.ServerView;
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.shell.command.annotation.Command;
+import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 
 @Command
+@Component
 public class UserCommand {
+    private final ClientController clientController;
+    private final ClientView clientView;
+
     private Stage stage;
 
-    @Command(command = "start-server", description = "")
+    @Autowired
+    public UserCommand(ClientView clientView, ClientController clientController) {
+        this.clientView = clientView;
+        this.clientController = clientController;
+    }
+
+    @Command(command = "start-server",
+            description = "Start the chess server and launch the server UI.")
     public void startServer() {
 
         Platform.runLater(() -> {
@@ -32,7 +44,8 @@ public class UserCommand {
         });
     }
 
-    @Command(command = "connect-client", description = "")
+    @Command(command = "connect-client",
+            description = "Connect to a running chess server as a client and launch the client UI.")
     public void connectClient() {
         Platform.runLater(() -> {
             this.stage = new Stage();
@@ -65,15 +78,13 @@ public class UserCommand {
     }
 
     private void runClient() {
-        var clientView = new ClientView();
-        var clientController = new ClientController(clientView, new ClientModel());
         clientView.setMouseClickHandlers(clientController);
 
         var scene = new Scene(clientView.view());
         stage.setScene(scene);
 
         stage.setOnCloseRequest(e -> {
-            clientController.closeClient();
+            clientController.shutdown();
 
             System.exit(0);
         });
