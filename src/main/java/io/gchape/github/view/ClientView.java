@@ -4,20 +4,20 @@ import io.gchape.github.controller.events.ClientOnClickEvents;
 import io.gchape.github.model.GameState;
 import io.gchape.github.model.entity.Piece;
 import io.gchape.github.model.entity.Position;
+import io.gchape.github.model.service.PgnService;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
+import javafx.geometry.HPos;
+import javafx.geometry.VPos;
 import javafx.scene.Node;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.PasswordField;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.stage.Stage;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -45,13 +45,80 @@ public class ClientView {
     private Button loginButton;
     private Button guestLoginButton;
     private Button registerButton;
+    private MenuBar menuBar;
 
     private ClientOnClickEvents clientOnClickEvents;
+
+    // PGN Integration
+    private PgnService pgnService;
+    private Stage primaryStage;
 
     public ClientView() {
         rootLayout = new BorderPane();
         rootLayout.setCenter(createFormsContainer());
         rootLayout.setBottom(createGuestLoginContainer());
+    }
+
+    // PGN Service injection
+    public void setPgnService(PgnService pgnService) {
+        this.pgnService = pgnService;
+    }
+
+    public void setPrimaryStage(Stage primaryStage) {
+        this.primaryStage = primaryStage;
+    }
+
+    // Setup menu bar with PGN options
+    private void setupMenuBar() {
+        menuBar = new MenuBar();
+
+        // Game Menu
+        Menu gameMenu = new Menu("Game");
+        MenuItem newGameItem = new MenuItem("New Game");
+        MenuItem exitItem = new MenuItem("Exit");
+        gameMenu.getItems().addAll(newGameItem, new SeparatorMenuItem(), exitItem);
+
+        // PGN Menu
+        Menu pgnMenu = new Menu("PGN");
+
+        MenuItem exportItem = new MenuItem("Export Games...");
+        exportItem.setOnAction(e -> showPgnExportDialog());
+
+        MenuItem importItem = new MenuItem("Import Games...");
+        importItem.setOnAction(e -> showPgnImportDialog());
+
+        pgnMenu.getItems().addAll(exportItem, importItem);
+
+        menuBar.getMenus().addAll(gameMenu, pgnMenu);
+
+        // Add menu bar to root layout
+        rootLayout.setTop(menuBar);
+    }
+
+    private void showPgnExportDialog() {
+        if (pgnService != null && primaryStage != null) {
+            PgnDialog pgnDialog = new PgnDialog(pgnService, primaryStage);
+            pgnDialog.showExportDialog();
+        } else {
+            showAlert("PGN Export", "PGN service is not available.", Alert.AlertType.WARNING);
+        }
+    }
+
+    private void showPgnImportDialog() {
+        if (pgnService != null && primaryStage != null) {
+            PgnDialog pgnDialog = new PgnDialog(pgnService, primaryStage);
+            pgnDialog.showImportDialog();
+        } else {
+            showAlert("PGN Import", "PGN service is not available.", Alert.AlertType.WARNING);
+        }
+    }
+
+    private void showAlert(String title, String message, Alert.AlertType type) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private HBox createGuestLoginContainer() {
@@ -83,7 +150,8 @@ public class ClientView {
 
     private GridPane setupBoard() {
         final GridPane grid = new GridPane();
-        grid.setAlignment(Pos.CENTER);
+        GridPane.setHalignment(grid, HPos.CENTER);
+        GridPane.setValignment(grid, VPos.CENTER);
 
         for (int row = 0; row < BOARD_SIZE; row++) {
             for (int col = 0; col < BOARD_SIZE; col++) {
@@ -215,6 +283,12 @@ public class ClientView {
         registerButton.setOnMouseClicked(onClickHandler::onRegisterClicked);
         loginButton.setOnMouseClicked(onClickHandler::onLoginClicked);
         guestLoginButton.setOnMouseClicked(onClickHandler::onGuestClicked);
+    }
+
+    // Call this method when the game view is shown (after login)
+    public void showGameView() {
+        setupMenuBar(); // Add menu bar when game view is displayed
+        rootLayout.setCenter(createBoard());
     }
 
     public GridPane getBoard() {

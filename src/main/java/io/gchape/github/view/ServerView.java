@@ -1,18 +1,29 @@
 package io.gchape.github.view;
 
 import io.gchape.github.controller.events.ServerOnClickEvents;
+import io.gchape.github.model.entity.*;
+import io.gchape.github.model.entity.db.Game;
+import io.gchape.github.model.repository.GameRepository;
+import io.gchape.github.model.service.PgnService;
 import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
+import javafx.geometry.HPos;
+import javafx.geometry.VPos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
+import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 import org.springframework.stereotype.Component;
+
+import java.io.File;
+import java.util.List;
 
 @Component
 public class ServerView {
@@ -40,6 +51,11 @@ public class ServerView {
     private final TextField usernameInput;
     private final PasswordField passwordInput;
     private final Button showDatabaseButton;
+
+    // PGN Integration
+    private PgnService pgnService;
+    private GameRepository gameRepository;
+    private Stage primaryStage;
 
     private ServerOnClickEvents clickHandler;
 
@@ -71,6 +87,19 @@ public class ServerView {
 
         setupLayout();
         setupBindings();
+    }
+
+    // PGN Service injection
+    public void setPgnService(PgnService pgnService) {
+        this.pgnService = pgnService;
+    }
+
+    public void setGameRepository(GameRepository gameRepository) {
+        this.gameRepository = gameRepository;
+    }
+
+    public void setPrimaryStage(Stage primaryStage) {
+        this.primaryStage = primaryStage;
     }
 
     private void setupLayout() {
@@ -214,7 +243,8 @@ public class ServerView {
             Label header = new Label(columns.get(col));
             header.getStyleClass().addAll("db-column-header", "db-cell");
             header.setMaxWidth(Double.MAX_VALUE);
-            header.setAlignment(Pos.CENTER);
+            GridPane.setHalignment(header, HPos.CENTER);
+            GridPane.setValignment(header, VPos.CENTER);
 
             ColumnConstraints columnConstraints = new ColumnConstraints();
             columnConstraints.setHgrow(Priority.ALWAYS);
@@ -232,7 +262,8 @@ public class ServerView {
                     Label cell = new Label(rowData.get(col) != null ? rowData.get(col) : "NULL");
                     cell.getStyleClass().addAll("db-cell", "db-data-cell");
                     cell.setMaxWidth(Double.MAX_VALUE);
-                    cell.setAlignment(Pos.CENTER_LEFT);
+                    GridPane.setHalignment(cell, HPos.LEFT);
+                    GridPane.setValignment(cell, VPos.CENTER);
                     databaseTableGrid.add(cell, col, row + 1);
                 }
             }
@@ -241,7 +272,8 @@ public class ServerView {
         } else {
             Label noDataLabel = new Label("No data available");
             noDataLabel.getStyleClass().add("no-data-label");
-            noDataLabel.setAlignment(Pos.CENTER);
+            GridPane.setHalignment(noDataLabel, HPos.CENTER);
+            GridPane.setValignment(noDataLabel, VPos.CENTER);
             databaseTableGrid.add(noDataLabel, 0, 1, columns.size(), 1);
             tableInfoLabel.setText("No data available for selected table");
         }
@@ -306,7 +338,6 @@ public class ServerView {
         titleLabel.getStyleClass().add("db-title");
 
         HBox controlsRow = new HBox(10);
-        controlsRow.setAlignment(Pos.CENTER_LEFT);
 
         Button goBackButton = new Button("← Back to Server");
         goBackButton.getStyleClass().add("back-button");
@@ -342,13 +373,160 @@ public class ServerView {
     private HBox createDatabaseBottomSection() {
         HBox bottomSection = new HBox();
         bottomSection.setPadding(new Insets(10));
-        bottomSection.setAlignment(Pos.CENTER_LEFT);
         bottomSection.getStyleClass().add("db-bottom-section");
 
         tableInfoLabel.getStyleClass().add("table-info-label");
         bottomSection.getChildren().add(tableInfoLabel);
 
         return bottomSection;
+    }
+
+    // Enhanced database view with PGN admin panel
+    public Region databaseTableViewWithPgnAdmin() {
+        var root = new BorderPane();
+        root.getStyleClass().add("database-view");
+
+        var topSection = createDatabaseTopSectionWithPgn();
+        root.setTop(topSection);
+
+        setupDatabaseTableScrollPane();
+        root.setCenter(databaseTableScrollPane);
+
+        var bottomSection = createDatabaseBottomSection();
+        root.setBottom(bottomSection);
+
+        return root;
+    }
+
+    private VBox createDatabaseTopSectionWithPgn() {
+        VBox topSection = new VBox(10);
+        topSection.setPadding(new Insets(10));
+        topSection.getStyleClass().add("db-top-section");
+
+        Label titleLabel = new Label("Database Tables");
+        titleLabel.getStyleClass().add("db-title");
+
+        HBox controlsRow = new HBox(10);
+
+        Button goBackButton = new Button("← Back to Server");
+        goBackButton.getStyleClass().add("back-button");
+        goBackButton.setOnMouseClicked(e -> {
+            if (clickHandler != null) {
+                clickHandler.onGoBackClicked(e);
+            }
+        });
+
+        Label tableLabel = new Label("Select Table:");
+        tableLabel.getStyleClass().add("form-label");
+
+        databaseTableChoiceBox.getStyleClass().add("table-choice-box");
+        databaseTableChoiceBox.setMaxWidth(200);
+
+        refreshTableButton.getStyleClass().add("refresh-button");
+
+        controlsRow.getChildren().addAll(goBackButton, new Separator(),
+                tableLabel, databaseTableChoiceBox, refreshTableButton);
+
+        // PGN Admin Panel
+        VBox pgnAdminPanel = createPgnAdminPanel();
+
+        topSection.getChildren().addAll(titleLabel, controlsRow, pgnAdminPanel);
+        return topSection;
+    }
+
+    private VBox createPgnAdminPanel() {
+        VBox pgnPanel = new VBox(10);
+        pgnPanel.setPadding(new Insets(10));
+        pgnPanel.getStyleClass().add("pgn-admin-panel");
+
+        Label pgnLabel = new Label("PGN Operations:");
+        pgnLabel.setStyle("-fx-font-weight: bold;");
+
+        HBox pgnButtonsRow = new HBox(10);
+
+        Button exportAllGamesBtn = new Button("Export All Games");
+        exportAllGamesBtn.setOnAction(e -> exportAllGames());
+        exportAllGamesBtn.getStyleClass().add("pgn-export-button");
+
+        Button importGamesBtn = new Button("Import Games");
+        importGamesBtn.setOnAction(e -> showImportDialog());
+        importGamesBtn.getStyleClass().add("pgn-import-button");
+
+        pgnButtonsRow.getChildren().addAll(exportAllGamesBtn, importGamesBtn);
+
+        pgnPanel.getChildren().addAll(pgnLabel, pgnButtonsRow);
+        return pgnPanel;
+    }
+
+    private void exportAllGames() {
+        if (pgnService == null || gameRepository == null || primaryStage == null) {
+            showAlert("Export Error", "PGN service or game repository is not available.", Alert.AlertType.ERROR);
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Export All Games");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("PGN Files", "*.pgn")
+        );
+        fileChooser.setInitialFileName("all_games.pgn");
+
+        File file = fileChooser.showSaveDialog(primaryStage);
+        if (file != null) {
+            Task<Void> exportTask = new Task<Void>() {
+                @Override
+                protected Void call() throws Exception {
+                    List<Game> allGames = gameRepository.findAll();
+                    List<Integer> gameIds = allGames.stream()
+                            .map(Game::id)
+                            .toList();
+
+                    if (gameIds.isEmpty()) {
+                        throw new RuntimeException("No games found to export");
+                    }
+
+                    String pgnContent = pgnService.exportGamesToPgn(gameIds);
+                    pgnService.savePgnToFile(pgnContent, file.getAbsolutePath());
+                    return null;
+                }
+            };
+
+            exportTask.setOnSucceeded(e -> {
+                Platform.runLater(() -> {
+                    showAlert("Export Success", "All games exported successfully to: " + file.getName(), Alert.AlertType.INFORMATION);
+                    logTextArea.appendText("PGN Export: Successfully exported all games to " + file.getName() + "\n");
+                });
+            });
+
+            exportTask.setOnFailed(e -> {
+                Platform.runLater(() -> {
+                    Throwable exception = exportTask.getException();
+                    String errorMessage = exception != null ? exception.getMessage() : "Unknown error";
+                    showAlert("Export Failed", "Export failed: " + errorMessage, Alert.AlertType.ERROR);
+                    logTextArea.appendText("PGN Export Error: " + errorMessage + "\n");
+                });
+            });
+
+            new Thread(exportTask).start();
+        }
+    }
+
+    private void showImportDialog() {
+        if (pgnService == null || primaryStage == null) {
+            showAlert("Import Error", "PGN service is not available.", Alert.AlertType.ERROR);
+            return;
+        }
+
+        PgnDialog pgnDialog = new PgnDialog(pgnService, primaryStage);
+        pgnDialog.showImportDialog();
+    }
+
+    private void showAlert(String title, String message, Alert.AlertType type) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     public ObjectProperty<ObservableList<String>> databaseTableListProperty() {
@@ -358,7 +536,6 @@ public class ServerView {
     public ObjectProperty<ObservableList<String>> databaseTableColumnsProperty() {
         return databaseTableColumns;
     }
-
     public ObjectProperty<ObservableList<ObservableList<String>>> databaseTableRowsProperty() {
         return databaseTableRows;
     }

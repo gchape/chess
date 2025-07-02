@@ -38,6 +38,9 @@ public class PlayerRepository {
         }
     }
 
+    // Add to PlayerRepository.java
+
+
     public Optional<Player> findByEmail(String email) {
         if (email == null || email.trim().isEmpty()) {
             logger.warn("Attempted to fetch player with null or empty email");
@@ -61,7 +64,8 @@ public class PlayerRepository {
 
         String sql = "SELECT id, username, email FROM players WHERE username = ?";
         try {
-            return Optional.ofNullable(jdbcTemplate.queryForObject(sql, playerMapper, username.trim()));
+            Player player = jdbcTemplate.queryForObject(sql, playerMapper, username.trim());
+            return Optional.ofNullable(player);
         } catch (DataAccessException e) {
             logger.debug("No player found with username: {}", username);
             return Optional.empty();
