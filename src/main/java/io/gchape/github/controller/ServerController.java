@@ -39,12 +39,13 @@ public class ServerController implements ServerOnClickEvents {
     public ServerController(final ServerView serverView,
                             final ServerModel serverModel,
                             final AdminRepository adminRepository,
-                            final JdbcTemplate jdbcTemplate) {
-        this.server = new Server();
+                            final JdbcTemplate jdbcTemplate,
+                            final Server server) {
         this.serverView = serverView;
         this.serverModel = serverModel;
         this.adminRepository = adminRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.server = server;
 
         this.mainServerViewRoot = serverView.view();
 
@@ -110,16 +111,14 @@ public class ServerController implements ServerOnClickEvents {
         serverModel.usernameProperty().set("");
         serverModel.passwordProperty().set("");
 
-        loadDatabaseTables().thenRun(() -> {
-            Platform.runLater(() -> {
-                var scene = serverView.getScene(e);
-                scene.setRoot(serverView.databaseTableView());
-            });
-        }).exceptionally(throwable -> {
-            Platform.runLater(() -> {
-                new Alert(Alert.AlertType.ERROR,
-                        "Failed to load database tables: " + throwable.getMessage()).showAndWait();
-            });
+        loadDatabaseTables().thenRun(() ->
+                Platform.runLater(() -> {
+                    var scene = serverView.getScene(e);
+                    scene.setRoot(serverView.databaseTableView());
+                })).exceptionally(throwable -> {
+            Platform.runLater(() ->
+                    new Alert(Alert.AlertType.ERROR,
+                            "Failed to load database tables: " + throwable.getMessage()).showAndWait());
             return null;
         });
     }
@@ -133,10 +132,9 @@ public class ServerController implements ServerOnClickEvents {
         serverModel.selectedTableProperty().set(tableName);
 
         loadTableData(tableName).exceptionally(throwable -> {
-            Platform.runLater(() -> {
-                new Alert(Alert.AlertType.ERROR,
-                        "Failed to load table data: " + throwable.getMessage()).showAndWait();
-            });
+            Platform.runLater(() ->
+                    new Alert(Alert.AlertType.ERROR,
+                            "Failed to load table data: " + throwable.getMessage()).showAndWait());
             return null;
         });
     }

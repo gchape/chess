@@ -13,6 +13,7 @@ import org.springframework.shell.command.annotation.CommandScan;
 @ComponentScan(basePackages = {
         "io.gchape.github.view",
         "io.gchape.github.model",
+        "io.gchape.github.http",
         "io.gchape.github.cli.config",
         "io.gchape.github.controller",
 })

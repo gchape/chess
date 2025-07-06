@@ -1,10 +1,10 @@
 package io.gchape.github.model.service;
 
-import io.gchape.github.model.entity.db.Game;
-import io.gchape.github.model.entity.db.Player;
 import io.gchape.github.model.entity.Move;
 import io.gchape.github.model.entity.Piece;
 import io.gchape.github.model.entity.Position;
+import io.gchape.github.model.entity.db.Game;
+import io.gchape.github.model.entity.db.Player;
 import io.gchape.github.model.repository.GameRepository;
 import io.gchape.github.model.repository.PlayerRepository;
 import org.slf4j.Logger;
@@ -19,25 +19,188 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Enhanced PGNService that handles saving live games when they complete
+ */
 @Service
 public class PGNService {
     private static final Logger logger = LoggerFactory.getLogger(PGNService.class);
+    private static final Pattern NETWORK_MOVE_PATTERN = Pattern.compile("([A-Za-z]+)#\\((\\d+),(\\d+)\\)->\\((\\d+),(\\d+)\\)");
+    private static final Pattern COORDINATE_MOVE_PATTERN = Pattern.compile("\\((\\d+),(\\d+)\\)->\\((\\d+),(\\d+)\\)");
     private static final DateTimeFormatter PGN_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy.MM.dd");
 
     private final GameRepository gameRepository;
     private final PlayerRepository playerRepository;
 
-    // Pattern to match move tuples like (2,3)->(2,4)
-    private static final Pattern MOVE_PATTERN = Pattern.compile("\\((\\d+),(\\d+)\\)->\\((\\d+),(\\d+)\\)");
-
     @Autowired
     public PGNService(GameRepository gameRepository, PlayerRepository playerRepository) {
         this.gameRepository = gameRepository;
         this.playerRepository = playerRepository;
+    }
+
+    /**
+     * Saves a completed live game to the database
+     */
+    public boolean saveCompletedGame(List<String> moveHistory, int whitePlayerId, int blackPlayerId, String result) {
+        try {
+            // Convert move history to the format expected by the database
+            String gameplay = convertMovesToGameplayFormat(moveHistory);
+
+            if (gameplay.isEmpty()) {
+                logger.warn("No valid moves found in move history for game between players {} and {}",
+                        whitePlayerId, blackPlayerId);
+                // Still save the game even if no moves (for disconnection cases)
+                gameplay = "";
+            }
+
+            // Create game entity
+            Game game = new Game(
+                    0, // ID will be generated
+                    whitePlayerId,
+                    blackPlayerId,
+                    Instant.now(),
+                    gameplay
+            );
+
+            // Save to database
+            Optional<Game> savedGame = gameRepository.save(game);
+
+            if (savedGame.isPresent()) {
+                logger.info("Successfully saved completed game with ID: {} for players {} vs {} (Result: {})",
+                        savedGame.get().id(), whitePlayerId, blackPlayerId, result);
+
+                // Optionally, also export to PGN format for backup
+                exportCompletedGameToPGN(savedGame.get(), result);
+
+                return true;
+            } else {
+                logger.error("Failed to save game to database");
+                return false;
+            }
+
+        } catch (Exception e) {
+            logger.error("Error saving completed game for players {} vs {}", whitePlayerId, blackPlayerId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Converts move history from network format to database format
+     */
+    private String convertMovesToGameplayFormat(List<String> moveHistory) {
+        StringBuilder gameplay = new StringBuilder();
+
+        for (String move : moveHistory) {
+            if (isValidMoveMessage(move)) {
+                String convertedMove = convertMoveMessage(move);
+                if (!convertedMove.isEmpty()) {
+                    if (!gameplay.isEmpty()) {
+                        gameplay.append(" ");
+                    }
+                    gameplay.append(convertedMove);
+                }
+            }
+        }
+
+        return gameplay.toString();
+    }
+
+    /**
+     * Validates if a message is a valid move message
+     */
+    private boolean isValidMoveMessage(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return false;
+        }
+
+        // Skip special game messages
+        if (message.contains("CHECKMATE") || message.contains("RESIGNATION") ||
+                message.contains("DRAW") || message.contains("STALEMATE")) {
+            return false;
+        }
+
+        return NETWORK_MOVE_PATTERN.matcher(message).matches();
+    }
+
+    /**
+     * Converts a single move message from network format to database format
+     */
+    private String convertMoveMessage(String moveMessage) {
+        Matcher matcher = NETWORK_MOVE_PATTERN.matcher(moveMessage);
+
+        if (matcher.matches()) {
+            // Extract coordinates from network format: PIECE#(fromRow,fromCol)->(toRow,toCol)
+            int fromRow = Integer.parseInt(matcher.group(2));
+            int fromCol = Integer.parseInt(matcher.group(3));
+            int toRow = Integer.parseInt(matcher.group(4));
+            int toCol = Integer.parseInt(matcher.group(5));
+
+            // Convert to database format: (fromRow,fromCol)->(toRow,toCol)
+            return String.format("(%d,%d)->(%d,%d)", fromRow, fromCol, toRow, toCol);
+        }
+
+        logger.warn("Could not parse move message: {}", moveMessage);
+        return "";
+    }
+
+    /**
+     * Exports a completed game to PGN format for backup
+     */
+    private void exportCompletedGameToPGN(Game game, String result) {
+        try {
+            String pgnContent = exportGameToPGN(game.id());
+            if (pgnContent != null) {
+                logger.debug("Generated PGN for completed game {}: {}", game.id(), pgnContent);
+                // Could save to file or store in another table if needed
+            }
+        } catch (Exception e) {
+            logger.warn("Could not export completed game {} to PGN", game.id(), e);
+        }
+    }
+
+    /**
+     * Handles immediate game ending (resignation, abandonment)
+     */
+    public boolean saveGameWithResult(List<String> moveHistory, int whitePlayerId, int blackPlayerId,
+                                      String result, String endReason) {
+        try {
+            boolean saved = saveCompletedGame(moveHistory, whitePlayerId, blackPlayerId, result);
+
+            if (saved) {
+                logger.info("Game ended: {} - Result: {} ({})",
+                        getPlayerNames(whitePlayerId, blackPlayerId), result, endReason);
+            }
+
+            return saved;
+
+        } catch (Exception e) {
+            logger.error("Error saving game with result: {}", result, e);
+            return false;
+        }
+    }
+
+    /**
+     * Gets player names for logging
+     */
+    private String getPlayerNames(int whitePlayerId, int blackPlayerId) {
+        try {
+            Optional<Player> whitePlayer = playerRepository.findById(whitePlayerId);
+            Optional<Player> blackPlayer = playerRepository.findById(blackPlayerId);
+
+            String whiteName = whitePlayer.map(Player::username).orElse("Unknown");
+            String blackName = blackPlayer.map(Player::username).orElse("Unknown");
+
+            return whiteName + " vs " + blackName;
+
+        } catch (Exception e) {
+            return "Player " + whitePlayerId + " vs Player " + blackPlayerId;
+        }
     }
 
     /**
@@ -188,11 +351,16 @@ public class PGNService {
     }
 
     /**
-     * Parse moves from gameplay string
+     * Parse moves from gameplay string (for PGN conversion)
      */
     private List<Move> parseMovesFromGameplay(String gameplay) {
         List<Move> moves = new ArrayList<>();
-        Matcher matcher = MOVE_PATTERN.matcher(gameplay);
+
+        if (gameplay == null || gameplay.trim().isEmpty()) {
+            return moves;
+        }
+
+        Matcher matcher = COORDINATE_MOVE_PATTERN.matcher(gameplay);
 
         while (matcher.find()) {
             int fromRow = Integer.parseInt(matcher.group(1));
@@ -255,7 +423,7 @@ public class PGNService {
         // Handle pawn moves
         if (piece == Piece.WP || piece == Piece.BP) {
             if (isCapture) {
-                return (char)('a' + from.col()) + "x" + toSquare;
+                return (char) ('a' + from.col()) + "x" + toSquare;
             } else {
                 return toSquare;
             }
@@ -286,7 +454,7 @@ public class PGNService {
      * Convert position to algebraic notation (e.g., (0,0) -> "a8")
      */
     private String positionToAlgebraic(Position pos) {
-        char file = (char)('a' + pos.col());
+        char file = (char) ('a' + pos.col());
         int rank = 8 - pos.row();
         return "" + file + rank;
     }
